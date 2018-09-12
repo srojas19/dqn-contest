@@ -19,16 +19,19 @@ class OneNeuronNN(Sequential):
 
 class CNN(Sequential):
 
-    def __init__(self, inputDimensions, learningRate=0.005, activation="linear"):
+    # inputDimensions already set as rows cols and channels
+    # def __init__(self, inputDimensions, learningRate=0.005, activation="linear"):
+    def __init__(self, learningRate=0.005):
 
         img_rows , img_cols = 80, 80
         #Convert image into Black and white
-        img_channels = 4 #We stack 4 frames
+        img_channels = 1 #We stack 4 frames (Only 1 frame is necesary?)
 
         print("Now we build the model")
         Sequential.__init__()
         
-        self.add(Convolution2D(32, 8, 8, subsample=(4, 4), border_mode='same',input_shape=(img_rows,img_cols,img_channels)))  #80*80*4
+        self.add(Convolution2D(32, 8, 8, subsample=(4, 4), border_mode='same',input_shape=(img_rows,img_cols,img_channels)))  #80*80*4 for Tensorflow
+        self.add(Convolution2D(32, 8, 8, subsample=(4, 4), border_mode='same',input_shape=(img_channels,img_rows,img_cols)))  #1*80*80 for Theano
         self.add(Activation('relu'))
         self.add(Convolution2D(64, 4, 4, subsample=(2, 2), border_mode='same'))
         self.add(Activation('relu'))
