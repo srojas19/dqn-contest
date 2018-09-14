@@ -3,15 +3,16 @@ from __future__ import print_function
 from models import CNN  # Create CNNs models from this import
 
 import capture
+from game import Directions
 
 import argparse
-import skimage as skimage
-from skimage import transform, color, exposure
-from skimage.transform import rotate
-from skimage.viewer import ImageViewer
-import sys
-sys.path.append("game/")
-import wrapped_flappy_bird as game
+# import skimage as skimage
+# from skimage import transform, color, exposure
+# from skimage.transform import rotate
+# from skimage.viewer import ImageViewer
+# import sys
+# sys.path.append("game/")
+# import wrapped_flappy_bird as game
 import random
 import numpy as np
 from collections import deque
@@ -27,8 +28,8 @@ import tensorflow as tf
 
 GAME = 'capture the flag' # the name of the game being played for log files
 CONFIG = 'nothreshold'
-ACTIONS = 5 # number of valid actions {STOP, UP, DOWN, LEFT, RIGHT}
-GAMMA = 0.99 # decay rate of past observations
+ACTIONS = 5 # number of valid actions {STOP, NORTH, SOUTH, WEST, EAST}
+GAMMA = 0.95 # decay rate of past observations
 OBSERVATION = 3200. # timesteps to observe before training
 EXPLORE = 3000000. # frames over which to anneal epsilon
 STEPS = 3000000
@@ -39,12 +40,15 @@ BATCH = 32 # size of minibatch
 FRAME_PER_ACTION = 1
 LEARNING_RATE = 1e-4
 
+ACTIONS = [Directions.STOP, Directions.NORTH, Directions.SOUTH, Directions.WEST, Directions.EAST]
+
 def trainNetwork(model,args):
     
     options = capture.readCommand(['-l', 'RANDOM', '-Q'])
     game = newGame(**options)
 
-    s_t = game.state
+    x_t = game.state
+    s_t = createMapRepresentation(x_t, 0)
 
     # store the previous observations in replay memory
     D = deque()
@@ -62,42 +66,33 @@ def trainNetwork(model,args):
         OBSERVE = OBSERVATION
         epsilon = INITIAL_EPSILON
 
+    agentIndex = 0
     t = 0
     while t < EXPLORE:
         loss = 0
         Q_sa = 0
         action_index = 0
         r_t = 0
-        a_t = np.zeros([ACTIONS])
+        a_t = Directions.STOP
+        
         #choose an action epsilon greedy
         if t % FRAME_PER_ACTION == 0:
             if random.random() <= epsilon:
                 print("----------Random Action----------")
                 action_index = random.randrange(ACTIONS)
-                a_t[action_index] = 1
+                a_t = ACTIONS[action_index]
             else:
                 q = model.predict(s_t)       #input a stack of 4 images, get the prediction
-                max_Q = np.argmax(q)
-                action_index = max_Q
-                a_t[max_Q] = 1
+                action_index = np.argmax(q)
+                a_t = ACTIONS[action_index]
 
         #We reduced the epsilon gradually
         if epsilon > FINAL_EPSILON and t > OBSERVE:
             epsilon -= (INITIAL_EPSILON - FINAL_EPSILON) / EXPLORE
 
         #run the selected action and observed next state and reward
-        x_t1_colored, r_t, terminal = game_state.frame_step(a_t)
-
-        x_t1 = skimage.color.rgb2gray(x_t1_colored)
-        x_t1 = skimage.transform.resize(x_t1,(80,80))
-        x_t1 = skimage.exposure.rescale_intensity(x_t1, out_range=(0, 255))
-
-
-        x_t1 = x_t1 / 255.0
-
-
-        x_t1 = x_t1.reshape(1, x_t1.shape[0], x_t1.shape[1], 1) #1x80x80x1
-        s_t1 = np.append(x_t1, s_t[:, :, :, :3], axis=3)
+        x_t1, r_t, terminal = getSuccesor(game, x_t, agentIndex, a_t)
+        s_t1 = createMapRepresentation(x_t1, agentIndex)
 
         # store the transition in D
         D.append((s_t, action_index, r_t, s_t1, terminal))
@@ -119,6 +114,7 @@ def trainNetwork(model,args):
 
             loss += model.train_on_batch(state_t, targets)
 
+        x_t = x_t1
         s_t = s_t1
         t += 1
 
@@ -160,7 +156,16 @@ def newGame(layouts, agents, display, length, numGames, record, numTraining, red
     game = rules.newGame( layout, agents, gameDisplay, length, muteAgents, catchExceptions )
     return game
 
-def createMapRepresentation(state, agent):
+def getSuccesor(game, state, agentIndex, action):
+    newState = state.generateSuccessor(agentIndex, action)
+    game.display.update(newState.data)
+
+    reward = newState.data.scoreChange
+    terminal = newState.data.timeLeft <= 0
+
+    return newState, reward, terminal
+
+def createMapRepresentation(state, agentIndex):
     """
     This is meant to create a representation of the state that can be sent as an input to the CNN.
     One could picture this as a simplified image of the map in a given state, but instead of using
@@ -168,7 +173,7 @@ def createMapRepresentation(state, agent):
     with a number. 
 
     """
-    pass
+    return []
 
 def main():
     parser = argparse.ArgumentParser(description='Description of your program')
