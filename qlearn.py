@@ -31,6 +31,7 @@ ACTIONS = 5 # number of valid actions {STOP, UP, DOWN, LEFT, RIGHT}
 GAMMA = 0.99 # decay rate of past observations
 OBSERVATION = 3200. # timesteps to observe before training
 EXPLORE = 3000000. # frames over which to anneal epsilon
+STEPS = 3000000
 FINAL_EPSILON = 0.0001 # final value of epsilon
 INITIAL_EPSILON = 0.1 # starting value of epsilon
 REPLAY_MEMORY = 50000 # number of previous transitions to remember
@@ -39,30 +40,15 @@ FRAME_PER_ACTION = 1
 LEARNING_RATE = 1e-4
 
 def trainNetwork(model,args):
-    # open up a game state to communicate with emulator
-    game_state = game.GameState()
+    
+    options = capture.readCommand(['-l', 'RANDOM', '-Q'])
+    game = newGame(**options)
+
+    s_t = game.state
 
     # store the previous observations in replay memory
     D = deque()
-
-    # get the first state by doing nothing and preprocess the image to 80x80x4
-    do_nothing = np.zeros(ACTIONS)
-    do_nothing[0] = 1
-    x_t, r_0, terminal = game_state.frame_step(do_nothing)
-
-    x_t = skimage.color.rgb2gray(x_t)
-    x_t = skimage.transform.resize(x_t,(80,80))
-    x_t = skimage.exposure.rescale_intensity(x_t,out_range=(0,255))
-
-    x_t = x_t / 255.0
-
-    s_t = np.stack((x_t, x_t, x_t, x_t), axis=2)
-    #print (s_t.shape)
-
-    #In Keras, need to reshape
-    s_t = s_t.reshape(1, s_t.shape[0], s_t.shape[1], s_t.shape[2])  #1*80*80*4
-
-    
+    D2 = deque() # Separate replay memories for each agent?
 
     if args['mode'] == 'Run':
         OBSERVE = 999999999    #We keep observe, never train
@@ -77,7 +63,7 @@ def trainNetwork(model,args):
         epsilon = INITIAL_EPSILON
 
     t = 0
-    while (True):
+    while t < EXPLORE:
         loss = 0
         Q_sa = 0
         action_index = 0
@@ -134,7 +120,7 @@ def trainNetwork(model,args):
             loss += model.train_on_batch(state_t, targets)
 
         s_t = s_t1
-        t = t + 1
+        t += 1
 
         # save progress every 10000 iterations
         if t % 1000 == 0:
@@ -162,6 +148,27 @@ def trainNetwork(model,args):
 def playGame(args):
     model = CNN(LEARNING_RATE)
     trainNetwork(model,args)
+
+def newGame(layouts, agents, display, length, numGames, record, numTraining, redTeamName, blueTeamName, muteAgents=False, catchExceptions=False):
+    rules = capture.CaptureRules()
+    layout = layouts[0]
+    
+    import textDisplay
+    gameDisplay = textDisplay.NullGraphics()
+    rules.quiet = True
+      
+    game = rules.newGame( layout, agents, gameDisplay, length, muteAgents, catchExceptions )
+    return game
+
+def createMapRepresentation(state, agent):
+    """
+    This is meant to create a representation of the state that can be sent as an input to the CNN.
+    One could picture this as a simplified image of the map in a given state, but instead of using
+    multiple pixels for each object in the map (that is, an agent, a wall, ...), it will be represented
+    with a number. 
+
+    """
+    pass
 
 def main():
     parser = argparse.ArgumentParser(description='Description of your program')
