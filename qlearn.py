@@ -47,6 +47,10 @@ def trainNetwork(model,args):
     options = capture.readCommand(['-l', 'RANDOM', '-Q'])
     game = newGame(**options)
 
+
+    # TODO: Instructions required to register Initial state of the agents. See Game.run()
+    # for more details. 
+
     x_t = game.state
     s_t = createMapRepresentation(x_t, 0)
 
@@ -66,77 +70,94 @@ def trainNetwork(model,args):
         OBSERVE = OBSERVATION
         epsilon = INITIAL_EPSILON
 
-    agentIndex = 0
+    agentIndex = game.startingIndex
     t = 0
     while t < EXPLORE:
-        loss = 0
-        Q_sa = 0
-        action_index = 0
-        r_t = 0
-        a_t = Directions.STOP
-        
-        #choose an action epsilon greedy
-        if t % FRAME_PER_ACTION == 0:
-            if random.random() <= epsilon:
-                print("----------Random Action----------")
-                action_index = random.randrange(ACTIONS)
-                a_t = ACTIONS[action_index]
+
+        if x_t.isOnRedTeam(agentIndex):
+            
+            loss = 0
+            Q_sa = 0
+            action_index = 0
+            r_t = 0
+            a_t = Directions.STOP
+            
+            #choose an action epsilon greedy
+            if t % FRAME_PER_ACTION == 0:
+                if random.random() <= epsilon:
+                    print("----------Random Action----------")
+                    action_index = random.randrange(ACTIONS)
+                    a_t = ACTIONS[action_index]
+                else:
+                    q = model.predict(s_t)       #input a stack of 4 images, get the prediction
+                    action_index = np.argmax(q)
+                    a_t = ACTIONS[action_index]
+
+            #We reduced the epsilon gradually
+            if epsilon > FINAL_EPSILON and t > OBSERVE:
+                epsilon -= (INITIAL_EPSILON - FINAL_EPSILON) / EXPLORE
+
+            #run the selected action and observed next state and reward
+            x_t1, r_t, terminal = getSuccesor(game, x_t, agentIndex, a_t)
+            s_t1 = createMapRepresentation(x_t1, agentIndex)
+
+            # store the transition in D
+            D.append((s_t, action_index, r_t, s_t1, terminal))
+            if len(D) > REPLAY_MEMORY:
+                D.popleft()
+
+            #only train if done observing
+            if t > OBSERVE:
+                #sample a minibatch to train on
+                minibatch = random.sample(D, BATCH)
+
+                #Now we do the experience replay
+                state_t, action_t, reward_t, state_t1, terminal = zip(*minibatch)
+                state_t = np.concatenate(state_t)
+                state_t1 = np.concatenate(state_t1)
+                targets = model.predict(state_t)
+                Q_sa = model.predict(state_t1)
+                targets[range(BATCH), action_t] = reward_t + GAMMA*np.max(Q_sa, axis=1)*np.invert(terminal)
+
+                loss += model.train_on_batch(state_t, targets)
+
+            x_t = x_t1
+            s_t = s_t1
+            t += 1
+
+
+            # save progress every 10000 iterations
+            if t % 1000 == 0:
+                print("Now we save model")
+                model.save_weights("model.h5", overwrite=True)
+                with open("model.json", "w") as outfile:
+                    json.dump(model.to_json(), outfile)
+
+            # print info
+            state = ""
+            if t <= OBSERVE:
+                state = "observe"
+            elif t > OBSERVE and t <= OBSERVE + EXPLORE:
+                state = "explore"
             else:
-                q = model.predict(s_t)       #input a stack of 4 images, get the prediction
-                action_index = np.argmax(q)
-                a_t = ACTIONS[action_index]
+                state = "train"
 
-        #We reduced the epsilon gradually
-        if epsilon > FINAL_EPSILON and t > OBSERVE:
-            epsilon -= (INITIAL_EPSILON - FINAL_EPSILON) / EXPLORE
+            print("TIMESTEP", t, "/ STATE", state, \
+                "/ EPSILON", epsilon, "/ ACTION", action_index, "/ REWARD", r_t, \
+                "/ Q_MAX " , np.max(Q_sa), "/ Loss ", loss)
 
-        #run the selected action and observed next state and reward
-        x_t1, r_t, terminal = getSuccesor(game, x_t, agentIndex, a_t)
-        s_t1 = createMapRepresentation(x_t1, agentIndex)
-
-        # store the transition in D
-        D.append((s_t, action_index, r_t, s_t1, terminal))
-        if len(D) > REPLAY_MEMORY:
-            D.popleft()
-
-        #only train if done observing
-        if t > OBSERVE:
-            #sample a minibatch to train on
-            minibatch = random.sample(D, BATCH)
-
-            #Now we do the experience replay
-            state_t, action_t, reward_t, state_t1, terminal = zip(*minibatch)
-            state_t = np.concatenate(state_t)
-            state_t1 = np.concatenate(state_t1)
-            targets = model.predict(state_t)
-            Q_sa = model.predict(state_t1)
-            targets[range(BATCH), action_t] = reward_t + GAMMA*np.max(Q_sa, axis=1)*np.invert(terminal)
-
-            loss += model.train_on_batch(state_t, targets)
-
-        x_t = x_t1
-        s_t = s_t1
-        t += 1
-
-        # save progress every 10000 iterations
-        if t % 1000 == 0:
-            print("Now we save model")
-            model.save_weights("model.h5", overwrite=True)
-            with open("model.json", "w") as outfile:
-                json.dump(model.to_json(), outfile)
-
-        # print info
-        state = ""
-        if t <= OBSERVE:
-            state = "observe"
-        elif t > OBSERVE and t <= OBSERVE + EXPLORE:
-            state = "explore"
         else:
-            state = "train"
+            # x_t = x_t.generateSuccessor(agentIndex, game.agents[agentIndex].chooseAction(x_t))
+            x_t, reward, terminal = getSuccesor(game, x_t, agentIndex, game.agents[agentIndex].chooseAction(x_t))
 
-        print("TIMESTEP", t, "/ STATE", state, \
-            "/ EPSILON", epsilon, "/ ACTION", action_index, "/ REWARD", r_t, \
-            "/ Q_MAX " , np.max(Q_sa), "/ Loss ", loss)
+        agentIndex = (agentIndex + 1) % x_t.getNumAgents()
+
+        # TODO: Start new game if the last one ends. Is this the right position for it?
+        if terminal:
+            game = newGame(**options)
+            x_t = game.state
+            s_t = createMapRepresentation(x_t, 0)
+            agentIndex = game.startingIndex
 
     print("Episode finished!")
     print("************************")
