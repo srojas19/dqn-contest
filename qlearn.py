@@ -2,6 +2,7 @@ from __future__ import print_function
 
 from models import CNN  # Create CNNs models from this import
 
+import sys
 import capture
 from game import Directions
 
@@ -56,7 +57,6 @@ def trainNetwork(model,args):
 
     # store the previous observations in replay memory
     D = deque()
-    D2 = deque() # Separate replay memories for each agent?
 
     if args['mode'] == 'Run':
         OBSERVE = 999999999    #We keep observe, never train
@@ -147,17 +147,19 @@ def trainNetwork(model,args):
                 "/ Q_MAX " , np.max(Q_sa), "/ Loss ", loss)
 
         else:
-            # x_t = x_t.generateSuccessor(agentIndex, game.agents[agentIndex].chooseAction(x_t))
-            x_t, reward, terminal = getSuccesor(game, x_t, agentIndex, game.agents[agentIndex].chooseAction(x_t))
+            action = game.agents[agentIndex].getAction(x_t)
+            x_t, reward, terminal = getSuccesor(game, x_t, agentIndex, action)
 
         agentIndex = (agentIndex + 1) % x_t.getNumAgents()
 
-        # TODO: Start new game if the last one ends. Is this the right position for it?
-        if terminal:
+        # TODO: Start new game if the last one ends.
+        if game.gameOver:
+            game.display.finish()
             game = newGame(**options)
             x_t = game.state
             s_t = createMapRepresentation(x_t, 0)
             agentIndex = game.startingIndex
+
 
     print("Episode finished!")
     print("************************")
@@ -175,11 +177,41 @@ def newGame(layouts, agents, display, length, numGames, record, numTraining, red
     rules.quiet = True
       
     game = rules.newGame( layout, agents, gameDisplay, length, muteAgents, catchExceptions )
+
+    game.display.initialize(game.state.data)
+    game.numMoves = 0
+
+    for i in range(len(game.agents)):
+        agent = game.agents[i]
+        if not agent:
+            game.mute(i)
+            # this is a null agent, meaning it failed to load
+            # the other team wins
+            print >>sys.stderr, "Agent %d failed to load" % i
+            game.unmute()
+            game._agentCrash(i, quiet=True)
+            return
+        if ("registerInitialState" in dir(agent)):
+            game.mute(i)
+            agent.registerInitialState(game.state.deepCopy())
+            game.unmute()
+
     return game
 
 def getSuccesor(game, state, agentIndex, action):
+    """
+
+    """
+
+    # TODO: Might need to return a new game object 
+    # (depends on if python modifies de argument of the function or not)
+
+    game.moveHistory.append((agentIndex, action))
     newState = state.generateSuccessor(agentIndex, action)
-    game.display.update(newState.data)
+    game.state = newState
+    game.display.update(game.state.data)
+
+    game.rules.process(game.state, game)
 
     reward = newState.data.scoreChange
     terminal = newState.data.timeLeft <= 0
