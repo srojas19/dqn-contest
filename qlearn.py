@@ -1,6 +1,7 @@
 from __future__ import print_function
 
-from models import CNN  # Create CNNs models from this import
+from models import CNN
+from models import createCNN  # Create CNNs models from this import
 
 import sys
 import capture
@@ -19,13 +20,13 @@ import numpy as np
 from collections import deque
 
 import json
-from keras.initializers import normal, identity
+# from keras.initializers import normal, identity
 from keras.models import model_from_json
-from keras.models import Sequential
-from keras.layers.core import Dense, Dropout, Activation, Flatten
-from keras.layers.convolutional import Convolution2D, MaxPooling2D
+# from keras.models import Sequential
+# from keras.layers.core import Dense, Dropout, Activation, Flatten
+# from keras.layers.convolutional import Convolution2D, MaxPooling2D
 from keras.optimizers import SGD , Adam
-import tensorflow as tf
+# import tensorflow as tf
 
 GAME = 'capture the flag' # the name of the game being played for log files
 CONFIG = 'nothreshold'
@@ -49,8 +50,7 @@ def trainNetwork(model,args):
     game = newGame(**options)
 
 
-    # TODO: Instructions required to register Initial state of the agents. See Game.run()
-    # for more details. 
+    
 
     x_t = game.state
     s_t = createMapRepresentation(x_t, 0)
@@ -86,7 +86,7 @@ def trainNetwork(model,args):
             if t % FRAME_PER_ACTION == 0:
                 if random.random() <= epsilon:
                     print("----------Random Action----------")
-                    action_index = random.randrange(ACTIONS)
+                    action_index = random.randrange(len(ACTIONS))
                     a_t = ACTIONS[action_index]
                 else:
                     q = model.predict(s_t)       #input a stack of 4 images, get the prediction
@@ -165,7 +165,7 @@ def trainNetwork(model,args):
     print("************************")
 
 def playGame(args):
-    model = CNN(LEARNING_RATE)
+    model = createCNN(LEARNING_RATE)
     trainNetwork(model,args)
 
 def newGame(layouts, agents, display, length, numGames, record, numTraining, redTeamName, blueTeamName, muteAgents=False, catchExceptions=False):
@@ -180,6 +180,8 @@ def newGame(layouts, agents, display, length, numGames, record, numTraining, red
 
     game.display.initialize(game.state.data)
     game.numMoves = 0
+
+    # Instructions required to register Initial state of the agents. See Game.run() for more details. 
 
     for i in range(len(game.agents)):
         agent = game.agents[i]
@@ -214,7 +216,8 @@ def getSuccesor(game, state, agentIndex, action):
     game.rules.process(game.state, game)
 
     reward = newState.data.scoreChange
-    terminal = newState.data.timeLeft <= 0
+    # terminal = newState.data.timeLeft <= 0
+    terminal = game.gameOver
 
     return newState, reward, terminal
 
@@ -226,7 +229,22 @@ def createMapRepresentation(state, agentIndex):
     with a number. 
 
     """
-    return []
+
+    data = str(state.data).split("\n")
+    data.pop()
+    data.pop()
+
+    representation = []
+    rowIndex = 0
+    for rowIndex in range(len(data)):
+        representation.append([])
+        for char in list(data[rowIndex]):
+            representation[rowIndex].append(ord(char))
+
+    #TODO: Differenciate agents
+    representation = np.array(representation)
+    representation = np.expand_dims(representation, axis=0)
+    return representation
 
 def main():
     parser = argparse.ArgumentParser(description='Description of your program')
@@ -235,9 +253,9 @@ def main():
     playGame(args)
 
 if __name__ == "__main__":
-    config = tf.ConfigProto()
-    config.gpu_options.allow_growth = True
-    sess = tf.Session(config=config)
-    from keras import backend as K
-    K.set_session(sess)
+    # config = tf.ConfigProto()
+    # config.gpu_options.allow_growth = True
+    # # sess = tf.Session(config=config)
+    # from keras import backend as K
+    # K.set_session(sess)
     main()
