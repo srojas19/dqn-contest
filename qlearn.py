@@ -36,7 +36,7 @@ OBSERVATION = 3200. # timesteps to observe before training
 EXPLORE = 3000000. # frames over which to anneal epsilon
 STEPS = 3000000
 FINAL_EPSILON = 0.0001 # final value of epsilon
-INITIAL_EPSILON = 0.1 # starting value of epsilon
+INITIAL_EPSILON = 0.9 # starting value of epsilon WAS 0.1
 REPLAY_MEMORY = 50000 # number of previous transitions to remember
 BATCH = 32 # size of minibatch
 FRAME_PER_ACTION = 1
@@ -48,9 +48,6 @@ def trainNetwork(model,args):
     
     options = capture.readCommand(['-l', 'RANDOM', '-Q'])
     game = newGame(**options)
-
-
-    
 
     x_t = game.state
     s_t = createMapRepresentation(x_t, 0)
@@ -81,15 +78,21 @@ def trainNetwork(model,args):
             action_index = 0
             r_t = 0
             a_t = Directions.STOP
+
+            legalActionsVector = getLegalActionsVector(x_t, agentIndex)
             
             #choose an action epsilon greedy
             if t % FRAME_PER_ACTION == 0:
                 if random.random() <= epsilon:
                     print("----------Random Action----------")
-                    action_index = random.randrange(len(ACTIONS))
+                    legalActions = x_t.getLegalActions(agentIndex)
+                    index = random.randrange(len(legalActions))
+
+                    action_index = ACTIONS.index(legalActions[index])
                     a_t = ACTIONS[action_index]
                 else:
-                    q = model.predict(s_t)       #input a stack of 4 images, get the prediction
+                    q = model.predict(s_t)
+                    q = q*legalActionsVector
                     action_index = np.argmax(q)
                     a_t = ACTIONS[action_index]
 
@@ -200,6 +203,15 @@ def newGame(layouts, agents, display, length, numGames, record, numTraining, red
 
     return game
 
+def getLegalActionsVector(state, agentIndex):
+    legalActions = state.getLegalActions(agentIndex)
+    vector = np.zeros(5)
+    for i in range(vector.size):
+        if ACTIONS[i] in legalActions: vector[i] = 1
+
+    return vector
+
+
 def getSuccesor(game, state, agentIndex, action):
     """
 
@@ -243,7 +255,8 @@ def createMapRepresentation(state, agentIndex):
 
     #TODO: Differenciate agents
     representation = np.array(representation)
-    representation = np.expand_dims(representation, axis=0)
+    # representation = np.expand_dims(representation, axis=0)
+    representation = representation.reshape([-1, representation.shape[0], representation.shape[1], 1])
     return representation
 
 def main():

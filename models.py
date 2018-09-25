@@ -59,7 +59,7 @@ def createCNN(learningRate = 0.005, inputDimensions = (18, 34, 1)):
     model.add(Flatten())
     model.add(Dense(512))
     model.add(Activation('relu'))
-    model.add(Dense(2))
+    model.add(Dense(5))
 
     adam = Adam(lr=learningRate)
     model.compile(loss='mse',optimizer=adam)
