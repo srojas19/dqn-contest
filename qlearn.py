@@ -272,8 +272,8 @@ def createMapRepresentation(state, agentIndex):
 
     # USE THESE LINES IF YOU WANT TO CHECK THE IMAGE REPRESENTATION OF THE STATE,
     # SEEN BY THE AGENT THAT EXECUTES THE FUNCTION
-    plt.imshow(representation)
-    plt.show()
+    # plt.imshow(representation)
+    # plt.show()
 
     representation = representation.reshape([1, representation.shape[0], representation.shape[1], 1])
     return representation
