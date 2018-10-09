@@ -8,23 +8,15 @@ import capture
 from game import Directions
 
 import argparse
-# import skimage as skimage
-# from skimage import transform, color, exposure
-# from skimage.transform import rotate
-# from skimage.viewer import ImageViewer
-# import sys
-# sys.path.append("game/")
-# import wrapped_flappy_bird as game
+
+import matplotlib.pyplot as plt
 import random
 import numpy as np
 from collections import deque
 
 import json
-# from keras.initializers import normal, identity
 from keras.models import model_from_json
-# from keras.models import Sequential
-# from keras.layers.core import Dense, Dropout, Activation, Flatten
-# from keras.layers.convolutional import Convolution2D, MaxPooling2D
+
 from keras.optimizers import SGD , Adam
 # import tensorflow as tf
 
@@ -42,10 +34,14 @@ BATCH = 32 # size of minibatch
 FRAME_PER_ACTION = 1
 LEARNING_RATE = 1e-4
 
+IMG_ROWS = 18
+IMG_COLS = 34
+
 ACTIONS = [Directions.STOP, Directions.NORTH, Directions.SOUTH, Directions.WEST, Directions.EAST]
 
 def trainNetwork(model,args):
     
+    # options = capture.readCommand(['-Q'])
     options = capture.readCommand(['-l', 'RANDOM', '-Q'])
     game = newGame(**options)
 
@@ -84,17 +80,23 @@ def trainNetwork(model,args):
             #choose an action epsilon greedy
             if t % FRAME_PER_ACTION == 0:
                 if random.random() <= epsilon:
-                    print("----------Random Action----------")
-                    legalActions = x_t.getLegalActions(agentIndex)
-                    index = random.randrange(len(legalActions))
+                    # print("----------Random Action----------")
+                    # legalActions = x_t.getLegalActions(agentIndex)
+                    # index = random.randrange(len(legalActions))
 
-                    action_index = ACTIONS.index(legalActions[index])
-                    a_t = ACTIONS[action_index]
+                    # action_index = ACTIONS.index(legalActions[index])
+                    # a_t = ACTIONS[action_index]
+                    a_t = game.agents[agentIndex].getAction(x_t)
+                    action_index = ACTIONS.index(a_t)
+
+                    # print("action was epsilon", str(a_t), str(ACTIONS[action_index]))
+
                 else:
                     q = model.predict(s_t)
-                    q = q*legalActionsVector
+                    q = q + legalActionsVector
                     action_index = np.argmax(q)
                     a_t = ACTIONS[action_index]
+                    # print("action was predicted from the model")
 
             #We reduced the epsilon gradually
             if epsilon > FINAL_EPSILON and t > OBSERVE:
@@ -145,13 +147,14 @@ def trainNetwork(model,args):
             else:
                 state = "train"
 
-            print("TIMESTEP", t, "/ STATE", state, \
-                "/ EPSILON", epsilon, "/ ACTION", action_index, "/ REWARD", r_t, \
-                "/ Q_MAX " , np.max(Q_sa), "/ Loss ", loss)
+            if r_t != 0:
+                print("TIMESTEP", t, "/ STATE", state, \
+                    "/ EPSILON", epsilon, "/ ACTION", action_index, "/ REWARD", r_t, \
+                    "/ Q_MAX " , np.max(Q_sa), "/ Loss ", loss)
 
         else:
             action = game.agents[agentIndex].getAction(x_t)
-            x_t, reward, terminal = getSuccesor(game, x_t, agentIndex, action)
+            x_t, _, terminal = getSuccesor(game, x_t, agentIndex, action)
 
         agentIndex = (agentIndex + 1) % x_t.getNumAgents()
 
@@ -185,7 +188,6 @@ def newGame(layouts, agents, display, length, numGames, record, numTraining, red
     game.numMoves = 0
 
     # Instructions required to register Initial state of the agents. See Game.run() for more details. 
-
     for i in range(len(game.agents)):
         agent = game.agents[i]
         if not agent:
@@ -207,14 +209,14 @@ def getLegalActionsVector(state, agentIndex):
     legalActions = state.getLegalActions(agentIndex)
     vector = np.zeros(5)
     for i in range(vector.size):
-        if ACTIONS[i] in legalActions: vector[i] = 1
+        vector[i] = 0 if ACTIONS[i] in legalActions else -1000
 
     return vector
 
-
 def getSuccesor(game, state, agentIndex, action):
     """
-
+    Return the succesor of a state, given that the agent with index 'agentIndex'
+    moves in the direction stated by 'action'
     """
 
     # TODO: Might need to return a new game object 
@@ -230,6 +232,9 @@ def getSuccesor(game, state, agentIndex, action):
     reward = newState.data.scoreChange
     # terminal = newState.data.timeLeft <= 0
     terminal = game.gameOver
+
+    if reward != 0:
+        print("Reward displayed in getSuccesor:", reward)
 
     return newState, reward, terminal
 
@@ -255,7 +260,21 @@ def createMapRepresentation(state, agentIndex):
 
     #TODO: Differenciate agents
     representation = np.array(representation)
-    # representation = np.expand_dims(representation, axis=0)
+
+    # Colors active agent
+    agentPosition = state.getAgentPosition(agentIndex)
+    representation[IMG_ROWS - agentPosition[1] -1][agentPosition[0]] = 200
+
+    # Colors partner
+    partnerPosition = state.getAgentPosition(0) if agentIndex != 0 else state.getAgentPosition(2)
+    representation[IMG_ROWS - partnerPosition[1] -1][partnerPosition[0]] = 180
+
+
+    # USE THESE LINES IF YOU WANT TO CHECK THE IMAGE REPRESENTATION OF THE STATE,
+    # SEEN BY THE AGENT THAT EXECUTES THE FUNCTION
+    # plt.imshow(representation)
+    # plt.show()
+
     representation = representation.reshape([-1, representation.shape[0], representation.shape[1], 1])
     return representation
 
