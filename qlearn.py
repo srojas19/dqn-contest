@@ -266,14 +266,14 @@ def createMapRepresentation(state, agentIndex):
     representation[IMG_ROWS - agentPosition[1] -1][agentPosition[0]] = 200
 
     # Colors partner
-    partnerPosition = state.getAgentPosition(0) if agentIndex != 0 else state.getAgentPosition(2)
+    partnerPosition = state.getAgentPosition((agentIndex + 2) % state.getNumAgents())
     representation[IMG_ROWS - partnerPosition[1] -1][partnerPosition[0]] = 180
 
 
     # USE THESE LINES IF YOU WANT TO CHECK THE IMAGE REPRESENTATION OF THE STATE,
     # SEEN BY THE AGENT THAT EXECUTES THE FUNCTION
-    # plt.imshow(representation)
-    # plt.show()
+    plt.imshow(representation)
+    plt.show()
 
     representation = representation.reshape([1, representation.shape[0], representation.shape[1], 1])
     return representation
