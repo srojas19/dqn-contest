@@ -276,7 +276,7 @@ def createMapRepresentation(state, agentIndex):
     representation[IMG_ROWS - agentPosition[1] -1][agentPosition[0]] = 200
 
     # Colors partner
-    partnerPosition = state.getAgentPosition(0) if agentIndex != 0 else state.getAgentPosition(2)
+    partnerPosition = state.getAgentPosition((agentIndex + 2) % state.getNumAgents())
     representation[IMG_ROWS - partnerPosition[1] -1][partnerPosition[0]] = 180
 
 
