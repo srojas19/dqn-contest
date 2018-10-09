@@ -275,7 +275,7 @@ def createMapRepresentation(state, agentIndex):
     # plt.imshow(representation)
     # plt.show()
 
-    representation = representation.reshape([-1, representation.shape[0], representation.shape[1], 1])
+    representation = representation.reshape([1, representation.shape[0], representation.shape[1], 1])
     return representation
 
 def main():
