@@ -230,6 +230,16 @@ def getSuccesor(game, state, agentIndex, action):
     game.rules.process(game.state, game)
 
     reward = newState.data.scoreChange
+    # TODO: If agent ate a rival, add the number of recovered food to the reward.
+    # Is it a good idea? Should the weights be adjusted
+
+    previousFoodCount = len(list(filter(lambda x: x is True, state.getRedFood())))
+    currentFoodCount = len(list(filter(lambda x: x is True, newState.getRedFood())))
+
+    if currentFoodCount > previousFoodCount:
+        print("agent", agentIndex, "ate a rival")
+        reward += (currentFoodCount - previousFoodCount)
+
     # terminal = newState.data.timeLeft <= 0
     terminal = game.gameOver
 
