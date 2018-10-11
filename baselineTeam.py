@@ -47,7 +47,11 @@ def createTeam(firstIndex, secondIndex, isRed,
   any extra arguments, so you should make sure that the default
   behavior is what you want for the nightly contest.
   """
-  return [eval(first)(firstIndex), eval(second)(secondIndex)]
+
+  if random.random() <= 0.5:
+    return [eval(first)(firstIndex), eval(second)(secondIndex)]
+  else :
+    return [eval(second)(firstIndex), eval(first)(secondIndex)]
 
 ##########
 # Agents #
