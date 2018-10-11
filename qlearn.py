@@ -116,8 +116,8 @@ def trainNetwork(model,args):
 
             #Now we do the experience replay
             phi_j, a_j, r_j, phi_j1, terminal_j1 = zip(*minibatch)
-            # phi_j = np.concatenate(phi_j)
-            # phi_j1 = np.concatenate(phi_j1)
+            phi_j = np.concatenate(phi_j)
+            phi_j1 = np.concatenate(phi_j1)
             y_j = targetModel.predict(phi_j) # Check this, as it might be refeeding information
             Q_sa = targetModel.predict(phi_j1)
             y_j[range(BATCH), a_j] = r_j + GAMMA*np.max(Q_sa, axis=1)*np.invert(terminal_j1)
