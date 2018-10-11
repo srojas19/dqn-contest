@@ -1,7 +1,6 @@
 from __future__ import print_function
 
-from models import CNN
-from models import createCNN  # Create CNNs models from this import
+from models import createCNNwithRMSProp, createCNNwithAdam  # Create CNNs models from this import
 
 import sys
 import capture
@@ -79,14 +78,14 @@ def trainNetwork(model,args):
 
         
         #choose an action epsilon greedy
-        if random.random() <= epsilon:
+        if random.random() <= epsilon or t <= OBSERVE:
             # print("----------Random Action----------")
-            # legalActions = s_t.getLegalActions(agentIndex)
-            # index = random.randrange(len(legalActions))
-            # action_index = ACTIONS.index(legalActions[index])
-            # a_t = ACTIONS[action_index]
-            a_t = game.agents[agentIndex].getAction(s_t)
-            action_index = ACTIONS.index(a_t)
+            legalActions = s_t.getLegalActions(agentIndex)
+            index = random.randrange(len(legalActions))
+            action_index = ACTIONS.index(legalActions[index])
+            a_t = ACTIONS[action_index]
+            # a_t = game.agents[agentIndex].getAction(s_t)
+            # action_index = ACTIONS.index(a_t)
 
         else:
             legalActionsVector = getLegalActionsVector(s_t, agentIndex)
@@ -167,7 +166,7 @@ def trainNetwork(model,args):
     print("************************")
 
 def playGame(args):
-    model = createCNN(LEARNING_RATE)
+    model = createCNNwithAdam(LEARNING_RATE)
     trainNetwork(model,args)
 
 def newGame(layouts, agents, display, length, numGames, record, numTraining, redTeamName, blueTeamName, muteAgents=False, catchExceptions=False):
@@ -273,7 +272,7 @@ def createMapRepresentation(state, agentIndex):
     # USE THESE LINES IF YOU WANT TO CHECK THE IMAGE REPRESENTATION OF THE STATE,
     # SEEN BY THE AGENT THAT EXECUTES THE FUNCTION
     # plt.imshow(representation)
-    # plt.show(block=False)
+    # plt.show()
 
     representation = representation.reshape([1, representation.shape[0], representation.shape[1], 1])
     return representation
@@ -285,9 +284,4 @@ def main():
     playGame(args)
 
 if __name__ == "__main__":
-    # config = tf.ConfigProto()
-    # config.gpu_options.allow_growth = True
-    # # sess = tf.Session(config=config)
-    # from keras import backend as K
-    # K.set_session(sess)
     main()
