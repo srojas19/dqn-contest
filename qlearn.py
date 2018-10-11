@@ -15,36 +15,37 @@ import numpy as np
 from collections import deque
 
 import json
-from keras.models import model_from_json
+from keras.models import model_from_json, clone_model
 
 from keras.optimizers import SGD , Adam
 # import tensorflow as tf
 
 GAME = 'capture the flag' # the name of the game being played for log files
 CONFIG = 'nothreshold'
-ACTIONS = 5 # number of valid actions {STOP, NORTH, SOUTH, WEST, EAST}
-GAMMA = 0.95 # decay rate of past observations
-OBSERVATION = 3200. # timesteps to observe before training
-EXPLORE = 3000000. # frames over which to anneal epsilon
-STEPS = 3000000
-FINAL_EPSILON = 0.0001 # final value of epsilon
-INITIAL_EPSILON = 0.9 # starting value of epsilon WAS 0.1
-REPLAY_MEMORY = 50000 # number of previous transitions to remember
-BATCH = 32 # size of minibatch
-FRAME_PER_ACTION = 1
-LEARNING_RATE = 1e-4
-
-IMG_ROWS = 18
-IMG_COLS = 34
 
 ACTIONS = [Directions.STOP, Directions.NORTH, Directions.SOUTH, Directions.WEST, Directions.EAST]
+BATCH = 32 # size of minibatch
+REPLAY_MEMORY = 500000 # number of previous transitions to remember
+TARGET_NETWORK_UPDATE_FREQUENCY = 10000
+GAMMA = 0.99 # decay rate of past observations
+OBSERVATION = 50000 # timesteps to observe before training
+EXPLORE = 1000000 # frames over which to anneal epsilon
+INITIAL_EPSILON = 1 # starting value of epsilon WAS 0.1
+FINAL_EPSILON = 0.1 # final value of epsilon
+FRAME_PER_ACTION = 1
+# LEARNING_RATE = 1e-4
+LEARNING_RATE = 0.00025
+
+IMG_ROWS = 18
+
 
 def trainNetwork(model,args):
+
+    targetModel = clone_model(model)
+    targetModel.set_weights(model.get_weights())
     
     options = capture.readCommand(['-l', 'RANDOM', '-Q'])
     game = newGame(**options)
-
-    
 
     # store the previous observations in replay memory
     D = deque()
@@ -61,11 +62,10 @@ def trainNetwork(model,args):
         OBSERVE = OBSERVATION
         epsilon = INITIAL_EPSILON
 
-    # agentIndex = game.startingIndex
-    agentIndex = 0
+    agentIndex = game.startingIndex
 
-    x_t = game.state
-    s_t = createMapRepresentation(x_t, agentIndex)
+    s_t = game.state
+    phi_t = createMapRepresentation(s_t, agentIndex)
 
     t = 0
 
@@ -77,39 +77,36 @@ def trainNetwork(model,args):
         r_t = 0
         a_t = Directions.STOP
 
-        legalActionsVector = getLegalActionsVector(x_t, agentIndex)
         
         #choose an action epsilon greedy
-        if t % FRAME_PER_ACTION == 0:
-            if random.random() <= epsilon:
-                # print("----------Random Action----------")
-                legalActions = x_t.getLegalActions(agentIndex)
-                index = random.randrange(len(legalActions))
+        if random.random() <= epsilon:
+            # print("----------Random Action----------")
+            # legalActions = s_t.getLegalActions(agentIndex)
+            # index = random.randrange(len(legalActions))
+            # action_index = ACTIONS.index(legalActions[index])
+            # a_t = ACTIONS[action_index]
+            a_t = game.agents[agentIndex].getAction(s_t)
+            action_index = ACTIONS.index(a_t)
 
-                action_index = ACTIONS.index(legalActions[index])
-                a_t = ACTIONS[action_index]
-                # a_t = game.agents[agentIndex].getAction(x_t)
-                # action_index = ACTIONS.index(a_t)
+        else:
+            legalActionsVector = getLegalActionsVector(s_t, agentIndex)
 
-                # print("action was epsilon", str(a_t), str(ACTIONS[action_index]))
-
-            else:
-                q = model.predict(s_t)
-                q = q + legalActionsVector
-                action_index = np.argmax(q)
-                a_t = ACTIONS[action_index]
-                # print("action was predicted from the model")
+            q = model.predict(phi_t)
+            q = q + legalActionsVector
+            action_index = np.argmax(q)
+            a_t = ACTIONS[action_index]
+            # print("action was predicted from the model")
 
         #We reduced the epsilon gradually
         if epsilon > FINAL_EPSILON and t > OBSERVE:
             epsilon -= (INITIAL_EPSILON - FINAL_EPSILON) / EXPLORE
 
         #run the selected action and observed next state and reward
-        x_t1, r_t, terminal = getSuccesor(game, x_t, agentIndex, a_t)
-        s_t1 = createMapRepresentation(x_t1, agentIndex)
+        s_t1, r_t, terminal_t1 = getSuccesor(game, s_t, agentIndex, a_t)
+        phi_t1 = createMapRepresentation(s_t1, agentIndex)
 
         # store the transition in D
-        D.append((s_t, action_index, r_t, s_t1, terminal))
+        D.append((phi_t, action_index, r_t, phi_t1, terminal_t1))
         if len(D) > REPLAY_MEMORY:
             D.popleft()
 
@@ -119,22 +116,21 @@ def trainNetwork(model,args):
             minibatch = random.sample(D, BATCH)
 
             #Now we do the experience replay
-            state_t, action_t, reward_t, state_t1, terminal = zip(*minibatch)
-            state_t = np.concatenate(state_t)
-            state_t1 = np.concatenate(state_t1)
-            targets = model.predict(state_t)
-            Q_sa = model.predict(state_t1)
-            targets[range(BATCH), action_t] = reward_t + GAMMA*np.max(Q_sa, axis=1)*np.invert(terminal)
+            phi_j, a_j, r_j, phi_j1, terminal_j1 = zip(*minibatch)
+            # phi_j = np.concatenate(phi_j)
+            # phi_j1 = np.concatenate(phi_j1)
+            y_j = targetModel.predict(phi_j) # Check this, as it might be refeeding information
+            Q_sa = targetModel.predict(phi_j1)
+            y_j[range(BATCH), a_j] = r_j + GAMMA*np.max(Q_sa, axis=1)*np.invert(terminal_j1)
 
-            loss += model.train_on_batch(state_t, targets)
+            loss += model.train_on_batch(phi_j, y_j)
 
-        x_t = x_t1
         s_t = s_t1
+        phi_t = phi_t1
         t += 1
 
-
         # save progress every 10000 iterations
-        if t % 1000 == 0:
+        if t % 10000 == 0:
             print("Now we save model")
             model.save_weights("model.h5", overwrite=True)
             with open("model.json", "w") as outfile:
@@ -159,10 +155,13 @@ def trainNetwork(model,args):
         if game.gameOver:
             game.display.finish()
             game = newGame(**options)
-            x_t = game.state
+            s_t = game.state
             agentIndex = game.startingIndex
-            s_t = createMapRepresentation(x_t, agentIndex)
+            phi_t = createMapRepresentation(s_t, agentIndex)
 
+        if t % TARGET_NETWORK_UPDATE_FREQUENCY == 0:
+            targetModel = clone_model(model)
+            targetModel.set_weights(model.get_weights())
 
     print("Episode finished!")
     print("************************")
@@ -213,7 +212,8 @@ def getLegalActionsVector(state, agentIndex):
 def getSuccesor(game, state, agentIndex, action):
     """
     Return the succesor of a state, given that the agent with index 'agentIndex'
-    moves in the direction stated by 'action'
+    moves in the direction stated by 'action', and all the following agents do 
+    their chosen action.
     """
 
     game.moveHistory.append((agentIndex, action))
@@ -243,11 +243,10 @@ def getSuccesor(game, state, agentIndex, action):
 
 def createMapRepresentation(state, agentIndex):
     """
-    This is meant to create a representation of the state that can be sent as an input to the CNN.
+    Create an image representation of the state that can be sent as an input to the CNN.
     One could picture this as a simplified image of the map in a given state, but instead of using
     multiple pixels for each object in the map (that is, an agent, a wall, ...), it will be represented
-    with a number. 
-
+    with a single, one channel (black and white), pixel. 
     """
 
     data = str(state.data).split("\n")
@@ -261,22 +260,20 @@ def createMapRepresentation(state, agentIndex):
         for char in list(data[rowIndex]):
             representation[rowIndex].append(ord(char))
 
-    #TODO: Differenciate agents
     representation = np.array(representation)
-
-    # Colors active agent
-    agentPosition = state.getAgentPosition(agentIndex)
-    representation[IMG_ROWS - agentPosition[1] -1][agentPosition[0]] = 200
 
     # Colors partner
     partnerPosition = state.getAgentPosition((agentIndex + 2) % state.getNumAgents())
     representation[IMG_ROWS - partnerPosition[1] -1][partnerPosition[0]] = 180
 
+    # Colors active agent
+    agentPosition = state.getAgentPosition(agentIndex)
+    representation[IMG_ROWS - agentPosition[1] -1][agentPosition[0]] = 200
 
     # USE THESE LINES IF YOU WANT TO CHECK THE IMAGE REPRESENTATION OF THE STATE,
     # SEEN BY THE AGENT THAT EXECUTES THE FUNCTION
     # plt.imshow(representation)
-    # plt.show()
+    # plt.show(block=False)
 
     representation = representation.reshape([1, representation.shape[0], representation.shape[1], 1])
     return representation
