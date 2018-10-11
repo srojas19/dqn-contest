@@ -46,6 +46,8 @@ def trainNetwork(model,args):
     options = capture.readCommand(['-l', 'RANDOM', '-Q'])
     game = newGame(**options)
 
+    folderName = args["name"]
+
     # store the previous observations in replay memory
     D = deque()
 
@@ -131,8 +133,8 @@ def trainNetwork(model,args):
         # save progress every 10000 iterations
         if t % 10000 == 0:
             print("Now we save model")
-            model.save_weights("model.h5", overwrite=True)
-            with open("model.json", "w") as outfile:
+            model.save_weights("/models/" + folderName + "/model.h5", overwrite=True)
+            with open("/models/" + folderName + "/model.json", "w") as outfile:
                 json.dump(model.to_json(), outfile)
 
         # print info
@@ -237,6 +239,10 @@ def getSuccesor(game, state, agentIndex, action):
 
     if not newState.isOnRedTeam(agentIndex):
         reward = -reward
+    
+    # Promote the trained agents to move
+    if action != Directions.STOP:
+        reward += 5
 
     return newState, reward, terminal
 
@@ -280,6 +286,7 @@ def createMapRepresentation(state, agentIndex):
 def main():
     parser = argparse.ArgumentParser(description='Description of your program')
     parser.add_argument('-m','--mode', help='Train / Run', required=True)
+    parser.add_argument('-n','--name', help='Name of the training model to train', required=True)
     args = vars(parser.parse_args())
     playGame(args)
 
