@@ -2,6 +2,8 @@ from __future__ import print_function
 
 from models import createCNNwithRMSProp, createCNNwithAdam  # Create CNNs models from this import
 
+import distutils.dir_util
+
 import sys
 import capture
 from game import Directions
@@ -46,7 +48,8 @@ def trainNetwork(model,args):
     options = capture.readCommand(['-l', 'RANDOM', '-Q'])
     game = newGame(**options)
 
-    folderName = args["name"]
+    path = "models/" + args["name"]
+    distutils.dir_util.mkpath(path)
 
     # store the previous observations in replay memory
     D = deque()
@@ -133,8 +136,8 @@ def trainNetwork(model,args):
         # save progress every 10000 iterations
         if t % 10000 == 0:
             print("Now we save model")
-            model.save_weights("/models/" + folderName + "/model.h5", overwrite=True)
-            with open("/models/" + folderName + "/model.json", "w") as outfile:
+            model.save_weights(path + "/model.h5", overwrite=True)
+            with open(path + "/model.json", "w") as outfile:
                 json.dump(model.to_json(), outfile)
 
         # print info
@@ -218,6 +221,11 @@ def getSuccesor(game, state, agentIndex, action):
     """
 
     game.moveHistory.append((agentIndex, action))
+
+    moveMotivation = 0
+    if action != Directions.STOP:
+        moveMotivation += 5
+
     newState = state.generateSuccessor(agentIndex, action)
     game.state = newState
     game.display.update(game.state.data)
@@ -241,8 +249,7 @@ def getSuccesor(game, state, agentIndex, action):
         reward = -reward
     
     # Promote the trained agents to move
-    if action != Directions.STOP:
-        reward += 5
+    reward += moveMotivation
 
     return newState, reward, terminal
 
