@@ -41,12 +41,10 @@ ACTIONS = [Directions.STOP, Directions.NORTH, Directions.SOUTH, Directions.WEST,
 
 def trainNetwork(model,args):
     
-    # options = capture.readCommand(['-Q'])
     options = capture.readCommand(['-l', 'RANDOM', '-Q'])
     game = newGame(**options)
 
-    x_t = game.state
-    s_t = createMapRepresentation(x_t, 0)
+    
 
     # store the previous observations in replay memory
     D = deque()
@@ -63,108 +61,107 @@ def trainNetwork(model,args):
         OBSERVE = OBSERVATION
         epsilon = INITIAL_EPSILON
 
-    agentIndex = game.startingIndex
+    # agentIndex = game.startingIndex
+    agentIndex = 0
+
+    x_t = game.state
+    s_t = createMapRepresentation(x_t, agentIndex)
+
     t = 0
+
     while t < EXPLORE:
-
-        if x_t.isOnRedTeam(agentIndex):
             
-            loss = 0
-            Q_sa = 0
-            action_index = 0
-            r_t = 0
-            a_t = Directions.STOP
+        loss = 0
+        Q_sa = 0
+        action_index = 0
+        r_t = 0
+        a_t = Directions.STOP
 
-            legalActionsVector = getLegalActionsVector(x_t, agentIndex)
-            
-            #choose an action epsilon greedy
-            if t % FRAME_PER_ACTION == 0:
-                if random.random() <= epsilon:
-                    # print("----------Random Action----------")
-                    # legalActions = x_t.getLegalActions(agentIndex)
-                    # index = random.randrange(len(legalActions))
+        legalActionsVector = getLegalActionsVector(x_t, agentIndex)
+        
+        #choose an action epsilon greedy
+        if t % FRAME_PER_ACTION == 0:
+            if random.random() <= epsilon:
+                # print("----------Random Action----------")
+                legalActions = x_t.getLegalActions(agentIndex)
+                index = random.randrange(len(legalActions))
 
-                    # action_index = ACTIONS.index(legalActions[index])
-                    # a_t = ACTIONS[action_index]
-                    a_t = game.agents[agentIndex].getAction(x_t)
-                    action_index = ACTIONS.index(a_t)
+                action_index = ACTIONS.index(legalActions[index])
+                a_t = ACTIONS[action_index]
+                # a_t = game.agents[agentIndex].getAction(x_t)
+                # action_index = ACTIONS.index(a_t)
 
-                    # print("action was epsilon", str(a_t), str(ACTIONS[action_index]))
+                # print("action was epsilon", str(a_t), str(ACTIONS[action_index]))
 
-                else:
-                    q = model.predict(s_t)
-                    q = q + legalActionsVector
-                    action_index = np.argmax(q)
-                    a_t = ACTIONS[action_index]
-                    # print("action was predicted from the model")
-
-            #We reduced the epsilon gradually
-            if epsilon > FINAL_EPSILON and t > OBSERVE:
-                epsilon -= (INITIAL_EPSILON - FINAL_EPSILON) / EXPLORE
-
-            #run the selected action and observed next state and reward
-            x_t1, r_t, terminal = getSuccesor(game, x_t, agentIndex, a_t)
-            s_t1 = createMapRepresentation(x_t1, agentIndex)
-
-            # store the transition in D
-            D.append((s_t, action_index, r_t, s_t1, terminal))
-            if len(D) > REPLAY_MEMORY:
-                D.popleft()
-
-            #only train if done observing
-            if t > OBSERVE:
-                #sample a minibatch to train on
-                minibatch = random.sample(D, BATCH)
-
-                #Now we do the experience replay
-                state_t, action_t, reward_t, state_t1, terminal = zip(*minibatch)
-                state_t = np.concatenate(state_t)
-                state_t1 = np.concatenate(state_t1)
-                targets = model.predict(state_t)
-                Q_sa = model.predict(state_t1)
-                targets[range(BATCH), action_t] = reward_t + GAMMA*np.max(Q_sa, axis=1)*np.invert(terminal)
-
-                loss += model.train_on_batch(state_t, targets)
-
-            x_t = x_t1
-            s_t = s_t1
-            t += 1
-
-
-            # save progress every 10000 iterations
-            if t % 1000 == 0:
-                print("Now we save model")
-                model.save_weights("model.h5", overwrite=True)
-                with open("model.json", "w") as outfile:
-                    json.dump(model.to_json(), outfile)
-
-            # print info
-            state = ""
-            if t <= OBSERVE:
-                state = "observe"
-            elif t > OBSERVE and t <= OBSERVE + EXPLORE:
-                state = "explore"
             else:
-                state = "train"
+                q = model.predict(s_t)
+                q = q + legalActionsVector
+                action_index = np.argmax(q)
+                a_t = ACTIONS[action_index]
+                # print("action was predicted from the model")
 
-            if r_t != 0:
-                print("TIMESTEP", t, "/ STATE", state, \
-                    "/ EPSILON", epsilon, "/ ACTION", action_index, "/ REWARD", r_t, \
-                    "/ Q_MAX " , np.max(Q_sa), "/ Loss ", loss)
+        #We reduced the epsilon gradually
+        if epsilon > FINAL_EPSILON and t > OBSERVE:
+            epsilon -= (INITIAL_EPSILON - FINAL_EPSILON) / EXPLORE
 
+        #run the selected action and observed next state and reward
+        x_t1, r_t, terminal = getSuccesor(game, x_t, agentIndex, a_t)
+        s_t1 = createMapRepresentation(x_t1, agentIndex)
+
+        # store the transition in D
+        D.append((s_t, action_index, r_t, s_t1, terminal))
+        if len(D) > REPLAY_MEMORY:
+            D.popleft()
+
+        #only train if done observing
+        if t > OBSERVE:
+            #sample a minibatch to train on
+            minibatch = random.sample(D, BATCH)
+
+            #Now we do the experience replay
+            state_t, action_t, reward_t, state_t1, terminal = zip(*minibatch)
+            state_t = np.concatenate(state_t)
+            state_t1 = np.concatenate(state_t1)
+            targets = model.predict(state_t)
+            Q_sa = model.predict(state_t1)
+            targets[range(BATCH), action_t] = reward_t + GAMMA*np.max(Q_sa, axis=1)*np.invert(terminal)
+
+            loss += model.train_on_batch(state_t, targets)
+
+        x_t = x_t1
+        s_t = s_t1
+        t += 1
+
+
+        # save progress every 10000 iterations
+        if t % 1000 == 0:
+            print("Now we save model")
+            model.save_weights("model.h5", overwrite=True)
+            with open("model.json", "w") as outfile:
+                json.dump(model.to_json(), outfile)
+
+        # print info
+        state = ""
+        if t <= OBSERVE:
+            state = "observe"
+        elif t > OBSERVE and t <= OBSERVE + EXPLORE:
+            state = "explore"
         else:
-            action = game.agents[agentIndex].getAction(x_t)
-            x_t, _, terminal = getSuccesor(game, x_t, agentIndex, action)
+            state = "train"
 
-        agentIndex = (agentIndex + 1) % x_t.getNumAgents()
+        if r_t != 0:
+            print("TIMESTEP", t, "/ STATE", state, \
+                "/ EPSILON", epsilon, "/ ACTION", action_index, "/ REWARD", r_t, \
+                "/ Q_MAX " , np.max(Q_sa), "/ Loss ", loss)
 
-        # TODO: Start new game if the last one ends.
+
+        # Start new game if the last one ends.
         if game.gameOver:
             game.display.finish()
             game = newGame(**options)
             x_t = game.state
-            s_t = createMapRepresentation(x_t, 0)
             agentIndex = game.startingIndex
+            s_t = createMapRepresentation(x_t, agentIndex)
 
 
     print("Episode finished!")
@@ -219,32 +216,28 @@ def getSuccesor(game, state, agentIndex, action):
     moves in the direction stated by 'action'
     """
 
-    # TODO: Might need to return a new game object 
-    # (depends on if python modifies de argument of the function or not)
-
     game.moveHistory.append((agentIndex, action))
     newState = state.generateSuccessor(agentIndex, action)
     game.state = newState
     game.display.update(game.state.data)
-
     game.rules.process(game.state, game)
-
+    
     reward = newState.data.scoreChange
-    # TODO: If agent ate a rival, add the number of recovered food to the reward.
-    # Is it a good idea? Should the weights be adjusted
-
-    previousFoodCount = len(list(filter(lambda x: x is True, state.getRedFood())))
-    currentFoodCount = len(list(filter(lambda x: x is True, newState.getRedFood())))
-
-    if currentFoodCount > previousFoodCount:
-        print("agent", agentIndex, "ate a rival")
-        reward += (currentFoodCount - previousFoodCount)
-
-    # terminal = newState.data.timeLeft <= 0
     terminal = game.gameOver
 
-    if reward != 0:
-        print("Reward displayed in getSuccesor:", reward)
+    currentAgentIndex = (agentIndex + 1) % newState.getNumAgents()
+    while not terminal and currentAgentIndex != agentIndex:
+        action = game.agents[currentAgentIndex].getAction(newState)
+        newState = newState.generateSuccessor(currentAgentIndex, action)
+        game.state = newState
+        game.display.update(game.state.data)
+        game.rules.process(game.state, game)
+        reward += newState.data.scoreChange
+        terminal = game.gameOver
+        currentAgentIndex = (currentAgentIndex + 1) % newState.getNumAgents()
+
+    if not newState.isOnRedTeam(agentIndex):
+        reward = -reward
 
     return newState, reward, terminal
 
