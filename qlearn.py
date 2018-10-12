@@ -37,15 +37,11 @@ FRAME_PER_ACTION = 1
 # LEARNING_RATE = 1e-4
 LEARNING_RATE = 0.00025
 
-IMG_ROWS = 18
-
-
-def trainNetwork(model,args):
+def trainNetwork(model, args, options):
 
     targetModel = clone_model(model)
     targetModel.set_weights(model.get_weights())
     
-    options = capture.readCommand(['-l', 'RANDOM', '-Q'])
     game = newGame(**options)
 
     path = "models/" + args["name"]
@@ -171,8 +167,15 @@ def trainNetwork(model,args):
     print("************************")
 
 def playGame(args):
-    model = createCNNwithAdam(LEARNING_RATE)
-    trainNetwork(model,args)
+    if args["layout"] == "Default":
+        options = capture.readCommand(['-Q'])
+    else:
+        options = capture.readCommand(['-l', 'RANDOM', '-Q'])
+    game = newGame(**options)
+    dimensions = (game.state.data.layout.height, game.state.data.layout.width, 1)
+    model = createCNNwithAdam(LEARNING_RATE, inputDimensions=dimensions)
+
+    trainNetwork(model,args, options)
 
 def newGame(layouts, agents, display, length, numGames, record, numTraining, redTeamName, blueTeamName, muteAgents=False, catchExceptions=False):
     rules = capture.CaptureRules()
@@ -223,8 +226,8 @@ def getSuccesor(game, state, agentIndex, action):
     game.moveHistory.append((agentIndex, action))
 
     moveMotivation = 0
-    if action != Directions.STOP:
-        moveMotivation += 5
+    if action == Directions.STOP:
+        moveMotivation -= 1
 
     newState = state.generateSuccessor(agentIndex, action)
     game.state = newState
@@ -260,6 +263,7 @@ def createMapRepresentation(state, agentIndex):
     multiple pixels for each object in the map (that is, an agent, a wall, ...), it will be represented
     with a single, one channel (black and white), pixel. 
     """
+    IMG_ROWS = state.data.layout.height
 
     data = str(state.data).split("\n")
     data.pop()
@@ -284,8 +288,8 @@ def createMapRepresentation(state, agentIndex):
 
     # USE THESE LINES IF YOU WANT TO CHECK THE IMAGE REPRESENTATION OF THE STATE,
     # SEEN BY THE AGENT THAT EXECUTES THE FUNCTION
-    # plt.imshow(representation)
-    # plt.show()
+    plt.imshow(representation)
+    plt.show()
 
     representation = representation.reshape([1, representation.shape[0], representation.shape[1], 1])
     return representation
@@ -294,6 +298,7 @@ def main():
     parser = argparse.ArgumentParser(description='Description of your program')
     parser.add_argument('-m','--mode', help='Train / Run', required=True)
     parser.add_argument('-n','--name', help='Name of the training model to train', required=True)
+    parser.add_argument('-l','--layout', help='Default / Random', required=False)
     args = vars(parser.parse_args())
     playGame(args)
 
