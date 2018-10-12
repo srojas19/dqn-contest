@@ -88,9 +88,10 @@ class DQNAgent(CaptureAgent):
     '''
     Your initialization code goes here, if you need any.
     '''
+    modelPath = "baseline_actions_no_stopping"
     self.model = createCNNwithAdam(learningRate= LEARNING_RATE)
 
-    self.model.load_weights("model.h5")
+    self.model.load_weights("models/"+ modelPath + "/model.h5")
     adam = Adam(lr=LEARNING_RATE)
     self.model.compile(loss='mse',optimizer=adam)
 
