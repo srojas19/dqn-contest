@@ -31,6 +31,7 @@ TARGET_NETWORK_UPDATE_FREQUENCY = 10000
 GAMMA = 0.99 # decay rate of past observations
 OBSERVATION = 50000 # timesteps to observe before training
 EXPLORE = 1000000 # frames over which to anneal epsilon
+TRAIN = 1500000 # Limit of training steps. TRAIN - EXPLORE = # of steps with epsilon = FINAL_EPSILON
 INITIAL_EPSILON = 1 # starting value of epsilon WAS 0.1
 FINAL_EPSILON = 0.1 # final value of epsilon
 FRAME_PER_ACTION = 1
@@ -44,8 +45,11 @@ def trainNetwork(model, args, options):
     
     game = newGame(**options)
 
-    path = "models/" + args["name"]
+    path = "models/" + args["name"] + "/"
     distutils.dir_util.mkpath(path)
+
+    statsFile = open(path + "stats.csv", "w")
+    gamesFile = open(path + "games.csv", "w")
 
     # store the previous observations in replay memory
     D = deque()
@@ -69,7 +73,11 @@ def trainNetwork(model, args, options):
 
     t = 0
 
-    while t < EXPLORE:
+    totalReward = 0
+    totalGamesScore = 0
+    currentGame = 1
+
+    while t < TRAIN:
             
         loss = 0
         Q_sa = 0
@@ -132,8 +140,8 @@ def trainNetwork(model, args, options):
         # save progress every 10000 iterations
         if t % 10000 == 0:
             print("Now we save model")
-            model.save_weights(path + "/model.h5", overwrite=True)
-            with open(path + "/model.json", "w") as outfile:
+            model.save_weights(path + "model.h5", overwrite=True)
+            with open(path + "model.json", "w") as outfile:
                 json.dump(model.to_json(), outfile)
 
         # print info
@@ -145,14 +153,16 @@ def trainNetwork(model, args, options):
         else:
             state = "train"
 
-        if r_t != 0:
-            print("TIMESTEP", t, "/ STATE", state, \
-                "/ EPSILON", epsilon, "/ ACTION", action_index, "/ REWARD", r_t, \
-                "/ Q_MAX " , np.max(Q_sa), "/ Loss ", loss)
-
+        totalReward += r_t
+        statsFile.write("".join([str(s) + ", " for s in [t, state, epsilon, action_index, r_t, totalReward, np.max(Q_sa), loss]]) + "\n")
 
         # Start new game if the last one ends.
         if game.gameOver:
+            finalScore = s_t.getScore() if s_t.isOnRedTeam(agentIndex) else - s_t.getScore()
+            totalGamesScore += finalScore
+            gamesFile.write("".join([str(s) + ", " for s in [state, currentGame, finalScore, totalGamesScore, s_t.isOnRedTeam(agentIndex)]]) + "\n")
+
+            currentGame += 1
             game.display.finish()
             game = newGame(**options)
             s_t = game.state
@@ -165,6 +175,9 @@ def trainNetwork(model, args, options):
 
     print("Episode finished!")
     print("************************")
+
+    gamesFile.close()
+    statsFile.close()
 
 def playGame(args):
     if args["layout"] == "Default":
@@ -240,6 +253,7 @@ def getSuccesor(game, state, agentIndex, action):
     currentAgentIndex = (agentIndex + 1) % newState.getNumAgents()
     while not terminal and currentAgentIndex != agentIndex:
         action = game.agents[currentAgentIndex].getAction(newState)
+        game.moveHistory.append((currentAgentIndex, action))
         newState = newState.generateSuccessor(currentAgentIndex, action)
         game.state = newState
         game.display.update(game.state.data)
@@ -288,8 +302,8 @@ def createMapRepresentation(state, agentIndex):
 
     # USE THESE LINES IF YOU WANT TO CHECK THE IMAGE REPRESENTATION OF THE STATE,
     # SEEN BY THE AGENT THAT EXECUTES THE FUNCTION
-    plt.imshow(representation)
-    plt.show()
+    # plt.imshow(representation)
+    # plt.show()
 
     representation = representation.reshape([1, representation.shape[0], representation.shape[1], 1])
     return representation
