@@ -89,12 +89,12 @@ def trainNetwork(model, args, options):
         #choose an action epsilon greedy
         if random.random() <= epsilon or t <= OBSERVE:
             # print("----------Random Action----------")
-            legalActions = s_t.getLegalActions(agentIndex)
-            index = random.randrange(len(legalActions))
-            action_index = ACTIONS.index(legalActions[index])
-            a_t = ACTIONS[action_index]
-            # a_t = game.agents[agentIndex].getAction(s_t)
-            # action_index = ACTIONS.index(a_t)
+            # legalActions = s_t.getLegalActions(agentIndex)
+            # index = random.randrange(len(legalActions))
+            # action_index = ACTIONS.index(legalActions[index])
+            # a_t = ACTIONS[action_index]
+            a_t = game.agents[agentIndex].getAction(s_t)
+            action_index = ACTIONS.index(a_t)
 
         else:
             legalActionsVector = getLegalActionsVector(s_t, agentIndex)

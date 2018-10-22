@@ -31,8 +31,6 @@ from keras.optimizers import SGD , Adam
 ACTIONS = [Directions.STOP, Directions.NORTH, Directions.SOUTH, Directions.WEST, Directions.EAST]
 LEARNING_RATE = 0.00025
 
-IMG_ROWS = 18
-
 def createTeam(firstIndex, secondIndex, isRed,
                first = 'DQNAgent', second = 'DQNAgent'):
   """
@@ -88,12 +86,18 @@ class DQNAgent(CaptureAgent):
     '''
     Your initialization code goes here, if you need any.
     '''
-    modelPath = "baseline_actions_no_stopping"
-    self.model = createCNNwithAdam(learningRate= LEARNING_RATE)
+    # modelPath = "random_actions_default_layout"
+    modelPath = "baseline_actions_default_layout"
+
+    dimensions = (gameState.data.layout.height, gameState.data.layout.width, 1)
+
+    self.model = createCNNwithAdam(learningRate= LEARNING_RATE, inputDimensions=dimensions)
 
     self.model.load_weights("models/"+ modelPath + "/model.h5")
     adam = Adam(lr=LEARNING_RATE)
     self.model.compile(loss='mse',optimizer=adam)
+
+    self.IMG_ROWS = gameState.data.layout.height
 
 
   def chooseAction(self, gameState):
@@ -146,11 +150,11 @@ class DQNAgent(CaptureAgent):
 
     # Colors partner
     partnerPosition = state.getAgentPosition((agentIndex + 2) % state.getNumAgents())
-    representation[IMG_ROWS - partnerPosition[1] -1][partnerPosition[0]] = 180
+    representation[self.IMG_ROWS - partnerPosition[1] -1][partnerPosition[0]] = 180
 
     # Colors active agent
     agentPosition = state.getAgentPosition(agentIndex)
-    representation[IMG_ROWS - agentPosition[1] -1][agentPosition[0]] = 200
+    representation[self.IMG_ROWS - agentPosition[1] -1][agentPosition[0]] = 200
 
     # USE THESE LINES IF YOU WANT TO CHECK THE IMAGE REPRESENTATION OF THE STATE,
     # SEEN BY THE AGENT THAT EXECUTES THE FUNCTION
