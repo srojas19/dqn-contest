@@ -5,6 +5,7 @@ from models import createCNNwithRMSProp, createCNNwithAdam  # Create CNNs models
 import distutils.dir_util
 
 import sys
+import time
 import capture
 from game import Directions
 
@@ -85,25 +86,21 @@ def trainNetwork(model, args, options):
         r_t = 0
         a_t = Directions.STOP
 
-        
-        #choose an action epsilon greedy
+        # Choose an action epsilon greedy
         if random.random() <= epsilon or t <= OBSERVE:
-            # print("----------Random Action----------")
-            # legalActions = s_t.getLegalActions(agentIndex)
-            # index = random.randrange(len(legalActions))
-            # action_index = ACTIONS.index(legalActions[index])
-            # a_t = ACTIONS[action_index]
-            a_t = game.agents[agentIndex].getAction(s_t)
-            action_index = ACTIONS.index(a_t)
+            legalActions = s_t.getLegalActions(agentIndex)
+            index = random.randrange(len(legalActions))
+            action_index = ACTIONS.index(legalActions[index])
+            a_t = ACTIONS[action_index]
+            # a_t = game.agents[agentIndex].getAction(s_t)
+            # action_index = ACTIONS.index(a_t)
 
         else:
             legalActionsVector = getLegalActionsVector(s_t, agentIndex)
-
             q = model.predict(phi_t)
             q = q + legalActionsVector
             action_index = np.argmax(q)
             a_t = ACTIONS[action_index]
-            # print("action was predicted from the model")
 
         #We reduced the epsilon gradually
         if epsilon > FINAL_EPSILON and t > OBSERVE:
@@ -184,11 +181,14 @@ def playGame(args):
         options = capture.readCommand(['-Q'])
     else:
         options = capture.readCommand(['-l', 'RANDOM', '-Q'])
+    startTime = time.clock()
     game = newGame(**options)
     dimensions = (game.state.data.layout.height, game.state.data.layout.width, 1)
     model = createCNNwithAdam(LEARNING_RATE, inputDimensions=dimensions)
-
     trainNetwork(model,args, options)
+
+    finalTime = time.clock()
+    print(finalTime - startTime)
 
 def newGame(layouts, agents, display, length, numGames, record, numTraining, redTeamName, blueTeamName, muteAgents=False, catchExceptions=False):
     rules = capture.CaptureRules()
@@ -264,6 +264,17 @@ def getSuccesor(game, state, agentIndex, action):
 
     if not newState.isOnRedTeam(agentIndex):
         reward = -reward
+
+
+    # Consider foor captured
+    redFoodDelta = len(list(filter(lambda x: x is True, newState.getRedFood()))) - len(list(filter(lambda x: x is True, state.getRedFood())))
+    blueFoodDelta = len(list(filter(lambda x: x is True, newState.getBlueFood()))) - len(list(filter(lambda x: x is True, state.getBlueFood())))
+    if newState.isOnRedTeam(agentIndex):
+        reward += redFoodDelta
+        reward -= blueFoodDelta
+    else:
+        reward -= redFoodDelta
+        reward += blueFoodDelta
     
     # Promote the trained agents to move
     reward += moveMotivation
@@ -292,13 +303,27 @@ def createMapRepresentation(state, agentIndex):
 
     representation = np.array(representation)
 
-    # Colors partner
-    partnerPosition = state.getAgentPosition((agentIndex + 2) % state.getNumAgents())
-    representation[IMG_ROWS - partnerPosition[1] -1][partnerPosition[0]] = 180
+    # # OLD METHOD TO COLOR AGENTS:
+    # # Colors partner
+    # partnerPosition = state.getAgentPosition((agentIndex + 2) % state.getNumAgents())
+    # representation[IMG_ROWS - partnerPosition[1] -1][partnerPosition[0]] = 180
 
-    # Colors active agent
-    agentPosition = state.getAgentPosition(agentIndex)
-    representation[IMG_ROWS - agentPosition[1] -1][agentPosition[0]] = 200
+    # # Colors active agent
+    # agentPosition = state.getAgentPosition(agentIndex)
+    # representation[IMG_ROWS - agentPosition[1] -1][agentPosition[0]] = 200
+
+    # NEW METHOD TO COLOR AGENT:
+    for agent in range(state.getNumAgents()):
+        agentPosition = state.getAgentPosition(agent)
+        if agent == agentIndex:
+            representation[IMG_ROWS - agentPosition[1] -1][agentPosition[0]] = 200
+        elif state.isOnRedTeam(agentIndex) == state.isOnRedTeam(agent):
+            representation[IMG_ROWS - agentPosition[1] -1][agentPosition[0]] = 180
+        else:
+            representation[IMG_ROWS - agentPosition[1] -1][agentPosition[0]] = 80
+        
+        if state.getAgentState(agent).scaredTimer > 0:
+            representation[IMG_ROWS - agentPosition[1] -1][agentPosition[0]] += 10
 
     # USE THESE LINES IF YOU WANT TO CHECK THE IMAGE REPRESENTATION OF THE STATE,
     # SEEN BY THE AGENT THAT EXECUTES THE FUNCTION

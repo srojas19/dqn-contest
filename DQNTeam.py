@@ -87,7 +87,9 @@ class DQNAgent(CaptureAgent):
     Your initialization code goes here, if you need any.
     '''
     # modelPath = "random_actions_default_layout"
-    modelPath = "baseline_actions_default_layout"
+    # modelPath = "baseline_actions_default_layout"
+    # modelPath = "random_actions_default_layout_reward_for_food"
+    modelPath = "baseline_actions_default_layout_reward_for_food"
 
     dimensions = (gameState.data.layout.height, gameState.data.layout.width, 1)
 
@@ -148,13 +150,27 @@ class DQNAgent(CaptureAgent):
 
     representation = np.array(representation)
 
-    # Colors partner
-    partnerPosition = state.getAgentPosition((agentIndex + 2) % state.getNumAgents())
-    representation[self.IMG_ROWS - partnerPosition[1] -1][partnerPosition[0]] = 180
+    # # OLD METHOD TO COLOR AGENTS:
+    # # Colors partner
+    # partnerPosition = state.getAgentPosition((agentIndex + 2) % state.getNumAgents())
+    # representation[self.IMG_ROWS - partnerPosition[1] -1][partnerPosition[0]] = 180
 
-    # Colors active agent
-    agentPosition = state.getAgentPosition(agentIndex)
-    representation[self.IMG_ROWS - agentPosition[1] -1][agentPosition[0]] = 200
+    # # Colors active agent
+    # agentPosition = state.getAgentPosition(agentIndex)
+    # representation[self.IMG_ROWS - agentPosition[1] -1][agentPosition[0]] = 200
+
+    # NEW METHOD TO COLOR AGENT:
+    for agent in range(state.getNumAgents()):
+        agentPosition = state.getAgentPosition(agent)
+        if agent == agentIndex:
+            representation[self.IMG_ROWS - agentPosition[1] -1][agentPosition[0]] = 200
+        elif state.isOnRedTeam(agentIndex) == state.isOnRedTeam(agent):
+            representation[self.IMG_ROWS - agentPosition[1] -1][agentPosition[0]] = 180
+        else:
+            representation[self.IMG_ROWS - agentPosition[1] -1][agentPosition[0]] = 80
+        
+        if state.getAgentState(agent).scaredTimer > 0:
+            representation[self.IMG_ROWS - agentPosition[1] -1][agentPosition[0]] += 10
 
     # USE THESE LINES IF YOU WANT TO CHECK THE IMAGE REPRESENTATION OF THE STATE,
     # SEEN BY THE AGENT THAT EXECUTES THE FUNCTION
