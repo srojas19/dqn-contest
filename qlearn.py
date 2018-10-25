@@ -88,12 +88,12 @@ def trainNetwork(model, args, options):
 
         # Choose an action epsilon greedy
         if random.random() <= epsilon or t <= OBSERVE:
-            legalActions = s_t.getLegalActions(agentIndex)
-            index = random.randrange(len(legalActions))
-            action_index = ACTIONS.index(legalActions[index])
-            a_t = ACTIONS[action_index]
-            # a_t = game.agents[agentIndex].getAction(s_t)
-            # action_index = ACTIONS.index(a_t)
+            # legalActions = s_t.getLegalActions(agentIndex)
+            # index = random.randrange(len(legalActions))
+            # action_index = ACTIONS.index(legalActions[index])
+            # a_t = ACTIONS[action_index]
+            a_t = game.agents[agentIndex].getAction(s_t)
+            action_index = ACTIONS.index(a_t)
 
         else:
             legalActionsVector = getLegalActionsVector(s_t, agentIndex)
@@ -240,7 +240,7 @@ def getSuccesor(game, state, agentIndex, action):
 
     moveMotivation = 0
     if action == Directions.STOP:
-        moveMotivation -= 1
+        moveMotivation -= 0.5
 
     newState = state.generateSuccessor(agentIndex, action)
     game.state = newState
@@ -249,6 +249,23 @@ def getSuccesor(game, state, agentIndex, action):
     
     reward = newState.data.scoreChange
     terminal = game.gameOver
+
+    # Consider food captured or recovered by the training agent
+    redFoodDelta = newState.getRedFood().count() - state.getRedFood().count()
+    blueFoodDelta = newState.getBlueFood().count() - state.getBlueFood().count()
+    if newState.isOnRedTeam(agentIndex):
+        reward += redFoodDelta
+        reward -= blueFoodDelta
+    else:
+        reward -= redFoodDelta
+        reward += blueFoodDelta
+
+    if redFoodDelta != 0:
+        print("red food changed by", redFoodDelta)
+    if blueFoodDelta != 0:
+        print("blue food changed by", blueFoodDelta)
+        
+
 
     currentAgentIndex = (agentIndex + 1) % newState.getNumAgents()
     while not terminal and currentAgentIndex != agentIndex:
@@ -266,16 +283,16 @@ def getSuccesor(game, state, agentIndex, action):
         reward = -reward
 
 
-    # Consider foor captured
-    redFoodDelta = len(list(filter(lambda x: x is True, newState.getRedFood()))) - len(list(filter(lambda x: x is True, state.getRedFood())))
-    blueFoodDelta = len(list(filter(lambda x: x is True, newState.getBlueFood()))) - len(list(filter(lambda x: x is True, state.getBlueFood())))
-    if newState.isOnRedTeam(agentIndex):
-        reward += redFoodDelta
-        reward -= blueFoodDelta
-    else:
-        reward -= redFoodDelta
-        reward += blueFoodDelta
-    
+    # # Consider foor captured WRONG!!!!
+    # redFoodDelta = len(list(filter(lambda x: x is True, newState.getRedFood()))) - len(list(filter(lambda x: x is True, state.getRedFood())))
+    # blueFoodDelta = len(list(filter(lambda x: x is True, newState.getBlueFood()))) - len(list(filter(lambda x: x is True, state.getBlueFood())))
+    # if newState.isOnRedTeam(agentIndex):
+    #     reward += redFoodDelta
+    #     reward -= blueFoodDelta
+    # else:
+    #     reward -= redFoodDelta
+    #     reward += blueFoodDelta
+        
     # Promote the trained agents to move
     reward += moveMotivation
 
