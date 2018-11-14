@@ -48,11 +48,8 @@ def createTeam(firstIndex, secondIndex, isRed,
   behavior is what you want for the nightly contest.
   """
 
-  if random.random() <= 0.5:
-    return [eval(first)(firstIndex), eval(second)(secondIndex)]
-  else :
-    return [eval(second)(firstIndex), eval(first)(secondIndex)]
-
+  return [eval(first)(firstIndex), eval(second)(secondIndex)]
+  
 ##########
 # Agents #
 ##########

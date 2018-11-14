@@ -368,8 +368,9 @@ class CaptureRules:
   def newGame( self, layout, agents, display, length, muteAgents, catchExceptions ):
     initState = GameState()
     initState.initialize( layout, len(agents) )
-    starter = random.randint(0,1)
-    print('%s team starts' % ['Red', 'Blue'][starter])
+    # starter = random.randint(0,1)
+    starter = random.randint(0,3)
+    # print('%s team starts' % ['Red', 'Blue'][starter%2])
     game = Game(agents, display, self, startingIndex=starter, muteAgents=muteAgents, catchExceptions=catchExceptions)
     game.state = initState
     game.length = length
