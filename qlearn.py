@@ -1,6 +1,7 @@
 from __future__ import print_function
 
 from models import createCNNwithRMSProp, createCNNwithAdam  # Create CNNs models from this import
+from qlearnFunctions import ACTIONS, createMapRepresentation, getLegalActionsVector
 
 import distutils.dir_util
 
@@ -18,14 +19,12 @@ from collections import deque
 
 import json
 from keras.models import model_from_json, clone_model
-
 from keras.optimizers import SGD , Adam
-# import tensorflow as tf
 
 GAME = 'capture the flag' # the name of the game being played for log files
 CONFIG = 'nothreshold'
 
-ACTIONS = [Directions.STOP, Directions.NORTH, Directions.SOUTH, Directions.WEST, Directions.EAST]
+# ACTIONS = [Directions.STOP, Directions.NORTH, Directions.SOUTH, Directions.WEST, Directions.EAST]
 BATCH = 32 # size of minibatch
 REPLAY_MEMORY = 500000 # number of previous transitions to remember
 TARGET_NETWORK_UPDATE_FREQUENCY = 10000
@@ -88,12 +87,12 @@ def trainNetwork(model, args, options):
 
         # Choose an action epsilon greedy
         if random.random() <= epsilon or t <= OBSERVE:
-            legalActions = s_t.getLegalActions(agentIndex)
-            index = random.randrange(len(legalActions))
-            action_index = ACTIONS.index(legalActions[index])
-            a_t = ACTIONS[action_index]
-            # a_t = game.agents[agentIndex].getAction(s_t)
-            # action_index = ACTIONS.index(a_t)
+            # legalActions = s_t.getLegalActions(agentIndex)
+            # index = random.randrange(len(legalActions))
+            # action_index = ACTIONS.index(legalActions[index])
+            # a_t = ACTIONS[action_index]
+            a_t = game.agents[agentIndex].getAction(s_t)
+            action_index = ACTIONS.index(a_t)
 
         else:
             legalActionsVector = getLegalActionsVector(s_t, agentIndex)
@@ -102,25 +101,25 @@ def trainNetwork(model, args, options):
             action_index = np.argmax(q)
             a_t = ACTIONS[action_index]
 
-        #We reduced the epsilon gradually
+        # Reduce epsilon
         if epsilon > FINAL_EPSILON and t > OBSERVE:
             epsilon -= (INITIAL_EPSILON - FINAL_EPSILON) / EXPLORE
 
-        #run the selected action and observed next state and reward
+        # Run the selected action and observe the next state and reward
         s_t1, r_t, terminal_t1 = getSuccesor(game, s_t, agentIndex, a_t)
         phi_t1 = createMapRepresentation(s_t1, agentIndex)
 
-        # store the transition in D
+        # Store the transition in D
         D.append((phi_t, action_index, r_t, phi_t1, terminal_t1))
         if len(D) > REPLAY_MEMORY:
             D.popleft()
 
-        #only train if done observing
+        # Only train if done observing
         if t > OBSERVE:
-            #sample a minibatch to train on
+            # Sample a minibatch to train on
             minibatch = random.sample(D, BATCH)
 
-            #Now we do the experience replay
+            # Do the experience replay
             phi_j, a_j, r_j, phi_j1, terminal_j1 = zip(*minibatch)
             phi_j = np.concatenate(phi_j)
             phi_j1 = np.concatenate(phi_j1)
@@ -134,14 +133,14 @@ def trainNetwork(model, args, options):
         phi_t = phi_t1
         t += 1
 
-        # save progress every 10000 iterations
-        if t % 10000 == 0:
+        # Save progress every 100000 iterations
+        if t % 100000 == 0:
             print("Now we save model")
             model.save_weights(path + "model.h5", overwrite=True)
             with open(path + "model.json", "w") as outfile:
                 json.dump(model.to_json(), outfile)
 
-        # print info
+        # Print info
         state = ""
         if t <= OBSERVE:
             state = "observe"
@@ -155,6 +154,9 @@ def trainNetwork(model, args, options):
 
         # Start new game if the last one ends.
         if game.gameOver:
+            if currentGame % 50 == 0:
+                print((currentGame/1250*100), "% Done")
+
             finalScore = s_t.getScore() if s_t.isOnRedTeam(agentIndex) else - s_t.getScore()
             totalGamesScore += finalScore
             gamesFile.write("".join([str(s) + ", " for s in [state, currentGame, finalScore, totalGamesScore, s_t.isOnRedTeam(agentIndex)]]) + "\n")
@@ -170,11 +172,64 @@ def trainNetwork(model, args, options):
             targetModel = clone_model(model)
             targetModel.set_weights(model.get_weights())
 
-    print("Episode finished!")
-    print("************************")
+    model.save_weights(path + "model.h5", overwrite=True)
+    with open(path + "model.json", "w") as outfile:
+        json.dump(model.to_json(), outfile)
 
     gamesFile.close()
     statsFile.close()
+
+
+def getSuccesor(game, state, agentIndex, action):
+    """
+    Return the succesor of a state, given that the agent with index 'agentIndex'
+    moves in the direction stated by 'action', and all the following agents do 
+    their chosen action.
+    """
+
+    game.moveHistory.append((agentIndex, action))    
+
+    newState = state.generateSuccessor(agentIndex, action)
+    game.state = newState
+    game.display.update(game.state.data)
+    game.rules.process(game.state, game)
+    
+    reward = newState.data.scoreChange * 2
+    terminal = game.gameOver
+
+    # Consider food captured or recovered by the training agent
+    redFoodDelta = newState.getRedFood().count() - state.getRedFood().count()
+    blueFoodDelta = newState.getBlueFood().count() - state.getBlueFood().count()
+    reward += redFoodDelta - blueFoodDelta
+
+    carrying = newState.getAgentState(agentIndex).numCarrying
+
+    currentAgentIndex = (agentIndex + 1) % newState.getNumAgents()
+    while not terminal and currentAgentIndex != agentIndex:
+        newAction = game.agents[currentAgentIndex].getAction(newState)
+        game.moveHistory.append((currentAgentIndex, newAction))
+        newState = newState.generateSuccessor(currentAgentIndex, newAction)
+        game.state = newState
+        game.display.update(game.state.data)
+        game.rules.process(game.state, game)
+        reward += newState.data.scoreChange
+        terminal = game.gameOver
+        currentAgentIndex = (currentAgentIndex + 1) % newState.getNumAgents()
+
+    if not newState.isOnRedTeam(agentIndex):
+        reward = -reward
+
+    # Consider if the agent was eaten by an opponent
+    reward += newState.getAgentState(agentIndex).numCarrying - carrying
+
+    # Promote the trained agents to move
+    if action == Directions.STOP:
+        reward -= 0.5
+    # elif reward != 0:
+    #     print(reward)
+
+    return newState, reward, terminal
+
 
 def playGame(args):
     if args["layout"] == "Default":
@@ -185,8 +240,10 @@ def playGame(args):
     game = newGame(**options)
     dimensions = (game.state.data.layout.height, game.state.data.layout.width, 1)
     model = createCNNwithAdam(LEARNING_RATE, inputDimensions=dimensions)
-    trainNetwork(model,args, options)
+    trainNetwork(model, args, options)
 
+    print("Episode finished!")
+    print("************************")
     finalTime = time.clock()
     print(finalTime - startTime)
 
@@ -221,134 +278,6 @@ def newGame(layouts, agents, display, length, numGames, record, numTraining, red
 
     return game
 
-def getLegalActionsVector(state, agentIndex):
-    legalActions = state.getLegalActions(agentIndex)
-    vector = np.zeros(5)
-    for i in range(vector.size):
-        vector[i] = 0 if ACTIONS[i] in legalActions else -1000
-
-    return vector
-
-def getSuccesor(game, state, agentIndex, action):
-    """
-    Return the succesor of a state, given that the agent with index 'agentIndex'
-    moves in the direction stated by 'action', and all the following agents do 
-    their chosen action.
-    """
-
-    game.moveHistory.append((agentIndex, action))
-
-    moveMotivation = 0
-    if action == Directions.STOP:
-        moveMotivation -= 0.5
-
-    newState = state.generateSuccessor(agentIndex, action)
-    game.state = newState
-    game.display.update(game.state.data)
-    game.rules.process(game.state, game)
-    
-    reward = newState.data.scoreChange
-    terminal = game.gameOver
-
-    # Consider food captured or recovered by the training agent
-    redFoodDelta = newState.getRedFood().count() - state.getRedFood().count()
-    blueFoodDelta = newState.getBlueFood().count() - state.getBlueFood().count()
-    if newState.isOnRedTeam(agentIndex):
-        reward += redFoodDelta
-        reward -= blueFoodDelta
-    else:
-        reward -= redFoodDelta
-        reward += blueFoodDelta
-
-    if redFoodDelta != 0:
-        print("red food changed by", redFoodDelta)
-    if blueFoodDelta != 0:
-        print("blue food changed by", blueFoodDelta)
-        
-
-
-    currentAgentIndex = (agentIndex + 1) % newState.getNumAgents()
-    while not terminal and currentAgentIndex != agentIndex:
-        action = game.agents[currentAgentIndex].getAction(newState)
-        game.moveHistory.append((currentAgentIndex, action))
-        newState = newState.generateSuccessor(currentAgentIndex, action)
-        game.state = newState
-        game.display.update(game.state.data)
-        game.rules.process(game.state, game)
-        reward += newState.data.scoreChange
-        terminal = game.gameOver
-        currentAgentIndex = (currentAgentIndex + 1) % newState.getNumAgents()
-
-    if not newState.isOnRedTeam(agentIndex):
-        reward = -reward
-
-
-    # # Consider foor captured WRONG!!!!
-    # redFoodDelta = len(list(filter(lambda x: x is True, newState.getRedFood()))) - len(list(filter(lambda x: x is True, state.getRedFood())))
-    # blueFoodDelta = len(list(filter(lambda x: x is True, newState.getBlueFood()))) - len(list(filter(lambda x: x is True, state.getBlueFood())))
-    # if newState.isOnRedTeam(agentIndex):
-    #     reward += redFoodDelta
-    #     reward -= blueFoodDelta
-    # else:
-    #     reward -= redFoodDelta
-    #     reward += blueFoodDelta
-        
-    # Promote the trained agents to move
-    reward += moveMotivation
-
-    return newState, reward, terminal
-
-def createMapRepresentation(state, agentIndex):
-    """
-    Create an image representation of the state that can be sent as an input to the CNN.
-    One could picture this as a simplified image of the map in a given state, but instead of using
-    multiple pixels for each object in the map (that is, an agent, a wall, ...), it will be represented
-    with a single, one channel (black and white), pixel. 
-    """
-    IMG_ROWS = state.data.layout.height
-
-    data = str(state.data).split("\n")
-    data.pop()
-    data.pop()
-
-    representation = []
-    rowIndex = 0
-    for rowIndex in range(len(data)):
-        representation.append([])
-        for char in list(data[rowIndex]):
-            representation[rowIndex].append(ord(char))
-
-    representation = np.array(representation)
-
-    # # OLD METHOD TO COLOR AGENTS:
-    # # Colors partner
-    # partnerPosition = state.getAgentPosition((agentIndex + 2) % state.getNumAgents())
-    # representation[IMG_ROWS - partnerPosition[1] -1][partnerPosition[0]] = 180
-
-    # # Colors active agent
-    # agentPosition = state.getAgentPosition(agentIndex)
-    # representation[IMG_ROWS - agentPosition[1] -1][agentPosition[0]] = 200
-
-    # NEW METHOD TO COLOR AGENT:
-    for agent in range(state.getNumAgents()):
-        agentPosition = state.getAgentPosition(agent)
-        if agent == agentIndex:
-            representation[IMG_ROWS - agentPosition[1] -1][agentPosition[0]] = 200
-        elif state.isOnRedTeam(agentIndex) == state.isOnRedTeam(agent):
-            representation[IMG_ROWS - agentPosition[1] -1][agentPosition[0]] = 180
-        else:
-            representation[IMG_ROWS - agentPosition[1] -1][agentPosition[0]] = 80
-        
-        if state.getAgentState(agent).scaredTimer > 0:
-            representation[IMG_ROWS - agentPosition[1] -1][agentPosition[0]] += 10
-
-    # USE THESE LINES IF YOU WANT TO CHECK THE IMAGE REPRESENTATION OF THE STATE,
-    # SEEN BY THE AGENT THAT EXECUTES THE FUNCTION
-    # plt.imshow(representation)
-    # plt.show()
-
-    representation = representation.reshape([1, representation.shape[0], representation.shape[1], 1])
-    return representation
 
 def main():
     parser = argparse.ArgumentParser(description='Description of your program')

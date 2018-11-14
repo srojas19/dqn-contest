@@ -18,6 +18,7 @@ from game import Directions
 import game
 
 from models import createCNNwithAdam
+from qlearnFunctions import ACTIONS, createMapRepresentation, getLegalActionsVector
 
 import numpy as np
 
@@ -28,7 +29,6 @@ from keras.optimizers import SGD , Adam
 # Team creation #
 #################
 
-ACTIONS = [Directions.STOP, Directions.NORTH, Directions.SOUTH, Directions.WEST, Directions.EAST]
 LEARNING_RATE = 0.00025
 
 def createTeam(firstIndex, secondIndex, isRed,
@@ -103,7 +103,6 @@ class DQNAgent(CaptureAgent):
     adam = Adam(lr=LEARNING_RATE)
     self.model.compile(loss='mse',optimizer=adam)
 
-    self.IMG_ROWS = gameState.data.layout.height
 
 
   def chooseAction(self, gameState):
@@ -114,9 +113,9 @@ class DQNAgent(CaptureAgent):
     You should change this in your own agent.
     '''
 
-    image = self._createMapRepresentation(gameState, self.index)
+    image = createMapRepresentation(gameState, self.index)
 
-    legalActionsVector = self._getLegalActionsVector(gameState, self.index)
+    legalActionsVector = getLegalActionsVector(gameState, self.index)
 
     q = self.model.predict(image)
     q = q + legalActionsVector
@@ -124,63 +123,3 @@ class DQNAgent(CaptureAgent):
     action = ACTIONS[action_index]
 
     return action
-
-  def _getLegalActionsVector(self, state, agentIndex):
-    legalActions = state.getLegalActions(agentIndex)
-    vector = np.zeros(5)
-    for i in range(vector.size):
-        vector[i] = 0 if ACTIONS[i] in legalActions else -1000
-
-    return vector
-
-  def _createMapRepresentation(self, state, agentIndex):
-    """
-    Create an image representation of the state that can be sent as an input to the CNN.
-    One could picture this as a simplified image of the map in a given state, but instead of using
-    multiple pixels for each object in the map (that is, an agent, a wall, ...), it will be represented
-    with a single, one channel (black and white), pixel. 
-    """
-
-    data = str(state.data).split("\n")
-    data.pop()
-    data.pop()
-
-    representation = []
-    rowIndex = 0
-    for rowIndex in range(len(data)):
-        representation.append([])
-        for char in list(data[rowIndex]):
-            representation[rowIndex].append(ord(char))
-
-    representation = np.array(representation)
-
-    # # OLD METHOD TO COLOR AGENTS:
-    # # Colors partner
-    # partnerPosition = state.getAgentPosition((agentIndex + 2) % state.getNumAgents())
-    # representation[self.IMG_ROWS - partnerPosition[1] -1][partnerPosition[0]] = 180
-
-    # # Colors active agent
-    # agentPosition = state.getAgentPosition(agentIndex)
-    # representation[self.IMG_ROWS - agentPosition[1] -1][agentPosition[0]] = 200
-
-    # NEW METHOD TO COLOR AGENT:
-    for agent in range(state.getNumAgents()):
-        agentPosition = state.getAgentPosition(agent)
-        if agent == agentIndex:
-            representation[self.IMG_ROWS - agentPosition[1] -1][agentPosition[0]] = 200
-        elif state.isOnRedTeam(agentIndex) == state.isOnRedTeam(agent):
-            representation[self.IMG_ROWS - agentPosition[1] -1][agentPosition[0]] = 180
-        else:
-            representation[self.IMG_ROWS - agentPosition[1] -1][agentPosition[0]] = 80
-        
-        if state.getAgentState(agent).scaredTimer > 0:
-            representation[self.IMG_ROWS - agentPosition[1] -1][agentPosition[0]] += 10
-
-    # USE THESE LINES IF YOU WANT TO CHECK THE IMAGE REPRESENTATION OF THE STATE,
-    # SEEN BY THE AGENT THAT EXECUTES THE FUNCTION
-    # plt.imshow(representation)
-    # plt.show()
-
-    representation = representation.reshape([1, representation.shape[0], representation.shape[1], 1])
-    return representation
-
