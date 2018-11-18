@@ -94,8 +94,8 @@ class DQNAgent(CaptureAgent):
     # modelPath = "baseline_actions_default_layout_reward_for_food"
     # modelPath = "baseline_actions_default_layout_reward_for_food_FIXED"
     # modelPath = "random_actions_default_layout_reward_for_food_FIXED"
-    modelPath = "random_actions_differenciates_pacman"
-    # modelPath = "baseline_actions_differenciates_pacman2"
+    modelPath = "random_actions_distinguishes_pacman"
+    # modelPath = "baseline_actions_distinguishes_pacman2"
 
     dimensions = (gameState.data.layout.height, gameState.data.layout.width, 1)
 
