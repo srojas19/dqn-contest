@@ -24,7 +24,6 @@ from keras.optimizers import SGD , Adam
 GAME = 'capture the flag' # the name of the game being played for log files
 CONFIG = 'nothreshold'
 
-# ACTIONS = [Directions.STOP, Directions.NORTH, Directions.SOUTH, Directions.WEST, Directions.EAST]
 BATCH = 32 # size of minibatch
 REPLAY_MEMORY = 500000 # number of previous transitions to remember
 TARGET_NETWORK_UPDATE_FREQUENCY = 10000
@@ -87,12 +86,14 @@ def trainNetwork(model, args, options):
 
         # Choose an action epsilon greedy
         if random.random() <= epsilon or t <= OBSERVE:
-            # legalActions = s_t.getLegalActions(agentIndex)
-            # index = random.randrange(len(legalActions))
-            # action_index = ACTIONS.index(legalActions[index])
-            # a_t = ACTIONS[action_index]
-            a_t = game.agents[agentIndex].getAction(s_t)
-            action_index = ACTIONS.index(a_t)
+            if args['epsilon'] == 'Random':
+                legalActions = s_t.getLegalActions(agentIndex)
+                index = random.randrange(len(legalActions))
+                action_index = ACTIONS.index(legalActions[index])
+                a_t = ACTIONS[action_index]
+            elif args['epsilon'] == 'Agent':
+                a_t = game.agents[agentIndex].getAction(s_t)
+                action_index = ACTIONS.index(a_t)
 
         else:
             legalActionsVector = getLegalActionsVector(s_t, agentIndex)
@@ -133,9 +134,9 @@ def trainNetwork(model, args, options):
         phi_t = phi_t1
         t += 1
 
-        # Save progress every 100000 iterations
-        if t % 100000 == 0:
-            print("Now we save model")
+        # Save progress every 15000 iterations
+        if t % 15000 == 0:
+            print((t/15000), "% Done")
             model.save_weights(path + "model.h5", overwrite=True)
             with open(path + "model.json", "w") as outfile:
                 json.dump(model.to_json(), outfile)
@@ -154,9 +155,6 @@ def trainNetwork(model, args, options):
 
         # Start new game if the last one ends.
         if game.gameOver:
-            if currentGame % 50 == 0:
-                print((currentGame/1250*100), "% Done")
-
             finalScore = s_t.getScore() if s_t.isOnRedTeam(agentIndex) else - s_t.getScore()
             totalGamesScore += finalScore
             gamesFile.write("".join([str(s) + ", " for s in [state, currentGame, finalScore, totalGamesScore, s_t.isOnRedTeam(agentIndex)]]) + "\n")
@@ -281,9 +279,10 @@ def newGame(layouts, agents, display, length, numGames, record, numTraining, red
 
 def main():
     parser = argparse.ArgumentParser(description='Description of your program')
-    parser.add_argument('-m','--mode', help='Train / Run', required=True)
-    parser.add_argument('-n','--name', help='Name of the training model to train', required=True)
-    parser.add_argument('-l','--layout', help='Default / Random', required=False)
+    parser.add_argument('-m','--mode', choices=['Train', 'Run'], help='Train or Run the model', default='Train')
+    parser.add_argument('-n','--name', help='Name of the training model.', required=True)
+    parser.add_argument('-l','--layout', choices=['Default', 'Random'], help='Choose the layouts used for training.', default='Default')
+    parser.add_argument('-e','--epsilon', choices=['Random', 'Agent'], help='Choose the action used by epsilon-greedy.', default='Random')
     args = vars(parser.parse_args())
     playGame(args)
 
