@@ -196,11 +196,11 @@ def getSuccesor(game, state, agentIndex, action):
     terminal = game.gameOver
 
     # Consider food captured or recovered by the training agent
-    redFoodDelta = newState.getRedFood().count() - state.getRedFood().count()
-    blueFoodDelta = newState.getBlueFood().count() - state.getBlueFood().count()
-    reward += redFoodDelta - blueFoodDelta
+    # redFoodDelta = newState.getRedFood().count() - state.getRedFood().count()
+    # blueFoodDelta = newState.getBlueFood().count() - state.getBlueFood().count()
+    # reward += redFoodDelta - blueFoodDelta
 
-    carrying = newState.getAgentState(agentIndex).numCarrying
+    # carrying = newState.getAgentState(agentIndex).numCarrying
 
     currentAgentIndex = (agentIndex + 1) % newState.getNumAgents()
     while not terminal and currentAgentIndex != agentIndex:
@@ -218,11 +218,11 @@ def getSuccesor(game, state, agentIndex, action):
         reward = -reward
 
     # Consider if the agent was eaten by an opponent
-    reward += newState.getAgentState(agentIndex).numCarrying - carrying
+    # reward += newState.getAgentState(agentIndex).numCarrying - carrying
 
     # Promote the trained agents to move
-    if action == Directions.STOP:
-        reward -= 0.5
+    # if action == Directions.STOP:
+    #     reward -= 0.5
     # elif reward != 0:
     #     print(reward)
 
