@@ -8,15 +8,16 @@ REWARDS = 2
 Q_VALUES = 3
 GAME_RESULTS = 4
 LOSS = 5
+AVERAGE_SCORE = 6
 
 def main():
 
-    path = "figures/all/" 
+    path = "figures/all2/" 
     distutils.dir_util.mkpath(path)
 
     models = sys.argv[1:]
 
-    figures = ['game scores', 'rewards', 'q values', 'game results', 'loss']
+    figures = ['game_scores', 'rewards', 'q_values', 'game_results', 'loss', 'average_scores']
 
     # Set up Figures
     plt.figure(GAME_SCORES)
@@ -49,6 +50,12 @@ def main():
     plt.ylabel('Loss')
     plt.grid(True)
 
+    plt.figure(AVERAGE_SCORE)
+    plt.title('Average Score')
+    plt.xlabel('Game')
+    plt.ylabel('Score')
+    plt.grid(True)
+
     statsNames = ['t', 'state', 'epsilon', 'action_index', 'r_t', 'totalReward', 'Q_sa', 'loss']
     gamesNames = ['state', 'currentGame', 'finalScore', 'totalGamesScore', 'playedRed']
     for model in models:
@@ -68,12 +75,10 @@ def main():
         plt.figure(REWARDS)
         rewards = stats['totalReward'].reshape(-1, group).mean(axis=1)
         plt.plot(t, rewards, label=model)
-        # plt.plot(stats['t'], stats['totalReward'], label=model)
 
         plt.figure(Q_VALUES)
         q_sa = stats['Q_sa'].reshape(-1, group).mean(axis=1)
         plt.plot(t, q_sa, label=model)
-        # plt.plot(stats['t'], stats['Q_sa'], label=model)
 
         plt.figure(GAME_RESULTS)
         loses, draws, wins = countResults(games)
@@ -84,9 +89,15 @@ def main():
         plt.figure(LOSS)
         loss = stats['loss'].reshape(-1, group).mean(axis=1)
         plt.plot(t, loss, label=model)
-        # plt.plot(stats['t'], stats['loss'], label=model)
 
-    for i in range(1,6):
+        plt.figure(AVERAGE_SCORE)
+        averageScoreGroup = 50
+        gamesGroup = np.arange(0,games['currentGame'].size-averageScoreGroup, averageScoreGroup)
+        averageScores = games['finalScore'][:averageScoreGroup*gamesGroup.size].reshape(-1, averageScoreGroup).mean(axis=1)
+        plt.plot(gamesGroup, averageScores, label=model)
+
+
+    for i in range(1,7):
         plt.figure(i)
         plt.legend()
         plt.savefig(path+figures[i-1]+'.png', bbox_inches='tight')
