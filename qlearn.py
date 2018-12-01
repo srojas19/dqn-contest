@@ -37,8 +37,9 @@ FRAME_PER_ACTION = 1
 # LEARNING_RATE = 1e-4
 LEARNING_RATE = 0.00025
 
-def trainNetwork(model, args, options):
+def trainNetwork(model, args):
 
+    options = getOptions(args["layout"])
     targetModel = clone_model(model)
     targetModel.set_weights(model.get_weights())
     
@@ -56,11 +57,11 @@ def trainNetwork(model, args, options):
     if args['mode'] == 'Run':
         OBSERVE = 999999999    #We keep observe, never train
         epsilon = FINAL_EPSILON
-        print ("Now we load weight")
+        print ("Now we load the weights")
         model.load_weights("model.h5")
         adam = Adam(lr=LEARNING_RATE)
         model.compile(loss='mse',optimizer=adam)
-        print ("Weight load successfully")    
+        print ("Weights loaded successfully")    
     else:                       #We go to training mode
         OBSERVE = OBSERVATION
         epsilon = INITIAL_EPSILON
@@ -161,6 +162,8 @@ def trainNetwork(model, args, options):
 
             currentGame += 1
             game.display.finish()
+
+            options = getOptions(args["layout"])
             game = newGame(**options)
             s_t = game.state
             agentIndex = game.startingIndex
@@ -230,20 +233,23 @@ def getSuccesor(game, state, agentIndex, action):
 
 
 def playGame(args):
-    if args["layout"] == "Default":
-        options = capture.readCommand(['-Q'])
-    else:
-        options = capture.readCommand(['-l', 'RANDOM', '-Q'])
+    options = getOptions(args["layout"])
     startTime = time.clock()
     game = newGame(**options)
     dimensions = (game.state.data.layout.height, game.state.data.layout.width, 1)
     model = createCNNwithAdam(LEARNING_RATE, inputDimensions=dimensions)
-    trainNetwork(model, args, options)
+    trainNetwork(model, args)
 
     print("Episode finished!")
     print("************************")
     finalTime = time.clock()
     print(finalTime - startTime)
+
+def getOptions(layout):
+    if layout == "Default":
+        return capture.readCommand(['-Q'])
+    else:
+        return capture.readCommand(['-l', 'RANDOM', '-Q'])
 
 def newGame(layouts, agents, display, length, numGames, record, numTraining, redTeamName, blueTeamName, muteAgents=False, catchExceptions=False):
     rules = capture.CaptureRules()
