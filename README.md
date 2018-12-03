@@ -21,7 +21,7 @@ LINUX, macOS: source activate py2
 python -m pip install -U pip
 python -m pip install -U numpy matplotlib
 ```
-5. Install Theano(http://www.deeplearning.net/software/theano/index.html):
+5. Install [Theano](http://www.deeplearning.net/software/theano/index.html):
 * Instructions for macOS: http://www.deeplearning.net/software/theano/install_macos.html
 * Instructions for Windows: http://www.deeplearning.net/software/theano/install_windows.html
 * Instructions for Linux: http://www.deeplearning.net/software/theano/install_ubuntu.html
