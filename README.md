@@ -1,4 +1,4 @@
-# DQN Contest
+# Applying Deep Reinforcement Learning to Berkeley's Capture the Flag game
 
 By **Santiago Rojas Herrera** (s.rojas19@uniandes.edu.co)
 
